@@ -1,6 +1,12 @@
 import { Router } from "express";
-import { performTest } from "../controllers/collection.controller";
+import {
+	collectArticles,
+	getRawArticles,
+	listSources,
+} from "../controllers/collection.controller";
 
 export const collectionRouter = Router();
 
-collectionRouter.get("/test", performTest);
+collectionRouter.get("/sources", listSources);
+collectionRouter.get("/articles/raw", getRawArticles);
+collectionRouter.post("/collect", collectArticles);

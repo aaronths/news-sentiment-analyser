@@ -1,8 +1,11 @@
 import express from "express";
+import { loadEnvironment } from "./config/load-environment";
 import { collectionRouter } from "./routes/collection.routes";
 
+loadEnvironment();
+
 export const app = express();
-const PORT = process.env.PORT || 8000;
+const PORT = process.env.DATA_COLLECTION_PORT || process.env.PORT || 8000;
 
 app.use(express.json());
 
