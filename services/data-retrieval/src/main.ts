@@ -2,7 +2,7 @@ import express from "express";
 import { retrievalRouter } from "./routes/collection.routes";
 
 export const app = express();
-const PORT = process.env.PORT || 8000;
+const PORT = process.env.DATA_RETRIEVAL_PORT || process.env.PORT || 8002;
 
 app.use(express.json());
 
