@@ -5,4 +5,4 @@ services/**/node_modules/
 **/dist/
 __pycache__/
 *.pyc
-data/
+data/node_modules/
