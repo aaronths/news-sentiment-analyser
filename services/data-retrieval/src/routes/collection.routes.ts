@@ -1,6 +1,10 @@
 import { Router } from "express";
-import { performTest } from "../controllers/retrieval.controller";
+import {
+	getArticlesByKeyword,
+	getOutletSummary,
+} from "../controllers/retrieval.controller";
 
 export const retrievalRouter = Router();
 
-retrievalRouter.get("/test", performTest);
+retrievalRouter.get("/articles", getArticlesByKeyword);
+retrievalRouter.get("/outlets", getOutletSummary);
