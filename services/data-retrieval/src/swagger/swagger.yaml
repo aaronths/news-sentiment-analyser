@@ -1,0 +1,387 @@
+openapi: 3.0.0
+info:
+  title: News Sentiment Analyzer - Retrieval API
+  description: API for retrieving news articles and analyzing sentiment based on keywords.
+  version: 1.1.0
+
+servers:
+  - url: "UNKNOWN TBC"
+
+paths:
+  /api/articles:
+    get:
+      summary: Retrieve articles by keyword
+      description: Returns a list of articles matching a keyword
+      parameters:
+        - name: keyword
+          in: query
+          required: true
+          schema:
+            type: string
+          example: inflation
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 10
+          example: 5
+        - name: startDate
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date
+        - name: endDate
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date
+      responses:
+        "200":
+          description: List of articles
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Article"
+
+  /articles/metadata:
+    get:
+      summary: Retrieve article metadata
+      description: Returns article titles, authors, dates, and sources without the full body
+      parameters:
+        - name: keyword
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Article metadata list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ArticleMetadata"
+
+  /articles/{id}:
+    get:
+      summary: Retrieve a single article by ID
+      description: Returns the full article including body content
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          example: article_123
+      responses:
+        "200":
+          description: A single article
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Article"
+        "404":
+          description: Article not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ArticleNotFoundError"
+
+  /articles/{id}/sentiment:
+    get:
+      summary: Get sentiment for a single article
+      description: Returns sentiment analysis scoped to a specific article by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          example: article_123
+      responses:
+        "200":
+          description: Sentiment result for the article
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ArticleSentimentResult"
+        "404":
+          description: Article not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ArticleNotFoundError"
+
+  /sentiment:
+    get:
+      summary: Get sentiment analysis for a keyword
+      description: Runs sentiment analysis on articles matching a keyword
+      parameters:
+        - name: keyword
+          in: query
+          required: true
+          schema:
+            type: string
+          example: economy
+      responses:
+        "200":
+          description: Sentiment result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SentimentResult"
+
+  /sentiment/trend:
+    get:
+      summary: Get sentiment trend for a keyword over time
+      description: Returns how sentiment for a specific keyword has changed over a given timeframe, bucketed by day
+      parameters:
+        - name: keyword
+          in: query
+          required: true
+          schema:
+            type: string
+          example: inflation
+        - name: timeframe
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [24h, 7d, 30d]
+            default: 7d
+          example: 7d
+      responses:
+        "200":
+          description: Time-series sentiment trend
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SentimentTrend"
+        "400":
+          description: Invalid or missing keyword parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/KeywordError"
+        "401":
+          description: Invalid or missing timeframe parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TimeframeError"
+
+  /trending:
+    get:
+      summary: Retrieve trending keywords
+      description: Returns keywords currently trending based on article frequency
+      parameters:
+        - name: timeframe
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [24h, 7d, 30d]
+            default: 24h
+      responses:
+        "200":
+          description: Trending keywords
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: string
+        "401":
+          description: Invalid or missing timeframe parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TimeframeError"
+
+  /sources:
+    get:
+      summary: List available news sources
+      description: Returns all news sources currently indexed in the system
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 50
+          example: 20
+      responses:
+        "200":
+          description: List of news sources
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Source"
+
+components:
+  schemas:
+    Article:
+      type: object
+      properties:
+        id:
+          type: string
+          example: article_123
+        title:
+          type: string
+          example: Inflation rises again
+        author:
+          type: string
+          example: John Smith
+        source:
+          type: string
+          example: The Guardian
+        publishedAt:
+          type: string
+          format: date-time
+        body:
+          type: string
+        url:
+          type: string
+
+    ArticleMetadata:
+      type: object
+      properties:
+        id:
+          type: string
+          example: article_123
+        title:
+          type: string
+          example: Inflation rises again
+        author:
+          type: string
+          example: John Smith
+        source:
+          type: string
+          example: The Guardian
+        publishedAt:
+          type: string
+          format: date-time
+
+    SentimentResult:
+      type: object
+      properties:
+        keyword:
+          type: string
+        articleCount:
+          type: integer
+        averageSentiment:
+          type: number
+          description: Average VADER compound score
+          example: 0.35
+        distribution:
+          type: object
+          properties:
+            positive:
+              type: integer
+            neutral:
+              type: integer
+            negative:
+              type: integer
+
+    ArticleSentimentResult:
+      type: object
+      properties:
+        articleId:
+          type: string
+          example: article_123
+        title:
+          type: string
+          example: Inflation rises again
+        sentimentScore:
+          type: number
+          description: VADER compound score between -1 (most negative) and 1 (most positive)
+          example: 0.42
+        sentimentLabel:
+          type: string
+          enum: [positive, neutral, negative]
+          example: positive
+        publishedAt:
+          type: string
+          format: date-time
+
+    SentimentTrend:
+      type: object
+      properties:
+        keyword:
+          type: string
+          example: inflation
+        timeframe:
+          type: string
+          enum: [24h, 7d, 30d]
+          example: 7d
+        dataPoints:
+          type: array
+          items:
+            type: object
+            properties:
+              date:
+                type: string
+                format: date
+                example: "2025-03-01"
+              averageSentiment:
+                type: number
+                description: Average VADER compound score for that day
+                example: -0.12
+              articleCount:
+                type: integer
+                example: 14
+
+    Source:
+      type: object
+      properties:
+        id:
+          type: string
+          example: source_001
+        name:
+          type: string
+          example: The Guardian
+        url:
+          type: string
+          example: https://theguardian.com
+        articleCount:
+          type: integer
+          description: Total number of articles indexed from this source
+          example: 1042
+
+    ArticleNotFoundError:
+      type: object
+      properties:
+        code:
+          type: integer
+          example: 400
+        message:
+          type: string
+          example: "Article could not be found (invalid article id)"
+
+    KeywordError:
+      type: object
+      properties:
+        code:
+          type: integer
+          example: 400
+        message:
+          type: string
+          example: "Invalid keyword parameter"
+
+    TimeframeError:
+      type: object
+      properties:
+        code:
+          type: integer
+          example: 400
+        message:
+          type: string
+          example: "Invalid timeframe parameter"
