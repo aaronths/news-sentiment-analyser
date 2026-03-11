@@ -30,9 +30,14 @@ Optional collection API remains available for testing:
 - `GET /api/articles/raw?sourceId=guardian&limit=10`
 - `POST /api/collect`
 
-### Runtime API Lambda
+### Runtime API Lambda (now data retrieval service)
 
-Location: [services/runtime-api](services/runtime-api)
+Location: [services/data-retrieval](services/data-retrieval)
+
+The TypeScript-based data-retrieval service replaces the Python runtime-api.  It
+implements the API described in `src/swagger/swagger.yaml` and exposes the
+specification directly at `/api/swagger.yaml` for documentation or client
+generation.
 
 - reads the clean article pool from S3 at runtime
 - falls back to the local clean JSON file if S3 is not configured or unavailable
@@ -107,10 +112,13 @@ Result:
 
 ## Runtime Lambda flow
 
-Install Python dependencies:
+Install Python dependencies (legacy):
 
 - `cd services/runtime-api && python -m pip install -r requirements.txt`
 
+Install Node dependencies for the new data‑retrieval service:
+
+- `cd services/data-retrieval && npm install`
 Deploy `handler.lambda_handler` behind Lambda Function URL or API Gateway.
 
 Example request:
