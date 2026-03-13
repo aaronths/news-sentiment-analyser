@@ -1,10 +1,22 @@
-.env
-.venv/
+# Dependencies
+node_modules/
 **/node_modules/
+
+# Build outputs
+dist/
 **/dist/
+build/
+
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# Python
+.venv/
 __pycache__/
 *.pyc
 
-node_modules/
-**/node_modules/
+# Local data
 data/
+*.log

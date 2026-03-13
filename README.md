@@ -138,6 +138,9 @@ Open [frontend/index.html](frontend/index.html) in a browser or serve the folder
 
 Provide the deployed runtime API URL, enter a keyword, and submit.
 
+## Swagger
+Access swagger locally after running data-retrieval on `/docs`
+
 ## Notes
 
 - [services/data-retrieval](services/data-retrieval) is a legacy MVP artifact from the earlier split-service version.
