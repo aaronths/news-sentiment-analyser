@@ -14,7 +14,8 @@ afterAll((done) => {
 beforeAll(() => {
   process.env.NEWS_DATA_BUCKET = "";
   // service expects the fallback at project-root/data/clean-articles.json
-  const dataPath = path.resolve(__dirname, "../../../../data/clean-articles.json");
+  // __dirname is services/data-retrieval/tests; go up three levels to repo root
+  const dataPath = path.resolve(__dirname, "../../../data/clean-articles.json");
   const sample = [
     {
       id: "test_article",
