@@ -13,7 +13,8 @@ afterAll((done) => {
 // this file when NEWS_DATA_BUCKET is unset
 beforeAll(() => {
   process.env.NEWS_DATA_BUCKET = "";
-  const dataPath = path.resolve(__dirname, "../../data/clean-articles.json");
+  // service expects the fallback at project-root/data/clean-articles.json
+  const dataPath = path.resolve(__dirname, "../../../../data/clean-articles.json");
   const sample = [
     {
       id: "test_article",
