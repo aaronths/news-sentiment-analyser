@@ -1,5 +1,5 @@
 import express from "express";
-import { retrievalRouter } from "./routes/collection.routes";
+import { retrievalRouter } from "./routes/retrieval.routes";
 import swaggerUi from 'swagger-ui-express';
 import YAML from 'yamljs';
 
@@ -7,6 +7,11 @@ export const app = express();
 const PORT = process.env.PORT || 8000;
 
 app.use(express.json());
+
+// Serve the raw OpenAPI document for clients or documentation tools
+app.get("/api/swagger.yaml", (req, res) => {
+  res.sendFile("swagger/swagger.yaml", { root: __dirname });
+});
 
 // Health check — important for Docker/CI
 app.get("/health", (req, res) => {
