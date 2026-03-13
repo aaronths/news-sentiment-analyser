@@ -1,9 +1,35 @@
+import fs from "fs";
+import path from "path";
 import request from "supertest";
 import { describe, it, expect, afterAll, beforeAll } from "@jest/globals";
 import { app, server } from "../src/main";
 
+// ensure the HTTP server is closed after tests
 afterAll((done) => {
   server.close(done);
+});
+
+// write a small known dataset before the tests run; the service will load
+// this file when NEWS_DATA_BUCKET is unset
+beforeAll(() => {
+  process.env.NEWS_DATA_BUCKET = "";
+  const dataPath = path.resolve(__dirname, "../../data/clean-articles.json");
+  const sample = [
+    {
+      id: "test_article",
+      sourceId: "test",
+      sourceName: "Test Source",
+      title: "Foo bar baz",
+      body: "This is a test article about economy and other things.",
+      summary: "Test article",
+      publishedAt: new Date().toISOString(),
+      url: "http://example.com/test",
+      keywordTokens: ["economy", "test"],
+      sentimentText: "This is a test article about economy and other things."
+    }
+  ];
+  fs.mkdirSync(path.dirname(dataPath), { recursive: true });
+  fs.writeFileSync(dataPath, JSON.stringify(sample));
 });
 
 describe("GET /api/test", () => {
