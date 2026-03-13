@@ -1,5 +1,7 @@
 import express from "express";
 import { retrievalRouter } from "./routes/retrieval.routes";
+import swaggerUi from 'swagger-ui-express';
+import YAML from 'yamljs';
 
 export const app = express();
 const PORT = process.env.PORT || 8000;
@@ -17,6 +19,10 @@ app.get("/health", (req, res) => {
 });
 
 app.use("/api", retrievalRouter);
+
+// Set up Swagger UI for API documentation
+const swaggerDocument = YAML.load('./src/swagger/swagger.yaml');
+app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 
 // Export the server so tests can close it and avoid open handle warnings
 export const server = app.listen(PORT, () => {
