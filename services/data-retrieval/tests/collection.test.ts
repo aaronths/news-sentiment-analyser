@@ -27,6 +27,8 @@ describe("Swagger endpoints", () => {
     expect(res.status).toBe(400);
   });
 
+  let firstArticleId: string;
+
   it("GET /api/articles with keyword returns matching list", async () => {
     const res = await request(app)
       .get("/api/articles")
@@ -36,12 +38,22 @@ describe("Swagger endpoints", () => {
     expect(Array.isArray(res.body.articles)).toBe(true);
     expect(res.body.keyword).toBe("economy");
     expect(res.body.totalMatches).toBeGreaterThan(0);
+
+    // fetch metadata to obtain an article ID for subsequent tests
+    const meta = await request(app)
+      .get("/api/articles/metadata")
+      .query({ keyword: "economy" });
+    expect(meta.status).toBe(200);
+    if (Array.isArray(meta.body) && meta.body.length > 0) {
+      firstArticleId = meta.body[0].id;
+    }
   });
 
   it("GET /api/articles/:id returns object when present", async () => {
-    const res = await request(app).get("/api/articles/article_1");
+    expect(firstArticleId).toBeDefined();
+    const res = await request(app).get(`/api/articles/${firstArticleId}`);
     expect(res.status).toBe(200);
-    expect(res.body.id).toBe("article_1");
+    expect(res.body.id).toBe(firstArticleId);
   });
 
   it("GET /api/articles/:id returns 404 if missing", async () => {
@@ -63,8 +75,9 @@ describe("Swagger endpoints", () => {
     expect(res.body.articleCount).toBeGreaterThanOrEqual(0);
   });
 
-  it("GET /api/article/1/sentiment returns sentiment data", async () => {
-    const res = await request(app).get("/api/articles/article_1/sentiment");
+  it("GET /api/articles/:id/sentiment returns sentiment data", async () => {
+    expect(firstArticleId).toBeDefined();
+    const res = await request(app).get(`/api/articles/${firstArticleId}/sentiment`);
     expect(res.status).toBe(200);
     expect(res.body.sentimentScore).toBeDefined();
   });

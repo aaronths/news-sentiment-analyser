@@ -26,6 +26,8 @@ export const getArticles = async (req: Request, res: Response) => {
   // compute sentiment rankings similar to the Python runtime
   const scored = await computeSentimentForArticles(matched);
 
+  // using any here keeps the ranking logic simple; data comes from the article pool
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const outlets: Record<string, any> = {};
   for (const entry of scored) {
     const article = entry.article;
@@ -47,6 +49,7 @@ export const getArticles = async (req: Request, res: Response) => {
     outlet.neutralScores.push(scores.neu);
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const rankings: any[] = [];
   for (const outlet of Object.values(outlets)) {
     const avgCompound =
@@ -158,9 +161,7 @@ export const getSentiment = async (req: Request, res: Response) => {
   const matched = await searchArticles(keyword);
   const scored = await computeSentimentForArticles(matched);
   const distribution = { positive: 0, neutral: 0, negative: 0 };
-  let total = 0;
   scored.forEach((entry) => {
-    total += 1;
     const label = labelForCompound(entry.scores.compound);
     distribution[label as keyof typeof distribution] += 1;
   });

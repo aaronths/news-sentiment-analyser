@@ -19,8 +19,12 @@ retrievalRouter.get("/test", performTest);
 // swagger-defined routes
 retrievalRouter.get("/articles", getArticles);
 retrievalRouter.get("/articles/metadata", getArticleMetadata);
-retrievalRouter.get("/articles/:id", getArticleById);
-retrievalRouter.get("/articles/:id/sentiment", getArticleSentiment);
+// sentiment endpoint must come **before** the generic id route, otherwise the
+// latter swallows requests by greedily matching the trailing "/sentiment".
+retrievalRouter.get("/articles/:id(*)/sentiment", getArticleSentiment);
+// IDs may contain slashes (they’re derived from Guardian URLs), so capture the
+// entire remainder of the path. express 4+ allows `(*)` for this purpose.
+retrievalRouter.get("/articles/:id(*)", getArticleById);
 retrievalRouter.get("/sentiment", getSentiment);
 retrievalRouter.get("/sentiment/trend", getSentimentTrend);
 retrievalRouter.get("/trending", getTrending);
