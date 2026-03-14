@@ -5,7 +5,8 @@ info:
   version: 1.1.0
 
 servers:
-  - url: "UNKNOWN TBC"
+  - url: "https://mbqiv0owad.execute-api.us-east-1.amazonaws.com/dev"
+    description: AWS API Gateway (Dev Environment)
 
 paths:
   /api/articles:
