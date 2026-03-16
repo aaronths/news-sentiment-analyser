@@ -11,6 +11,14 @@ interface CollectArticlesOptions {
   keyword?: string;
   perSource: number;
   sourceIds?: string[];
+  /**
+   * Number of pages to request for each source (if supported).
+   *
+   * For example, the Guardian API supports pagination via a `page` query
+   * parameter. If set to >1, we will request further pages to gather older
+   * stories in addition to the latest articles.
+   */
+  pages?: number;
 }
 
 interface GuardianApiResponse {
@@ -240,12 +248,21 @@ const buildSampleArticles = (
   return selected;
 };
 
-const buildGuardianUrl = (config: NewsSourceConfig, keyword: string | undefined, perSource: number) => {
+const buildGuardianUrl = (
+  config: NewsSourceConfig,
+  keyword: string | undefined,
+  perSource: number,
+  page?: number,
+) => {
   const url = new URL("/search", config.baseUrl);
   url.searchParams.set("api-key", config.apiKey);
   url.searchParams.set("page-size", String(perSource));
   url.searchParams.set("show-fields", "headline,trailText,bodyText,byline");
   url.searchParams.set("order-by", "newest");
+
+  if (page && page > 1) {
+    url.searchParams.set("page", String(page));
+  }
 
   if (keyword?.trim()) {
     url.searchParams.set("q", keyword.trim());
@@ -258,9 +275,10 @@ const collectGuardianArticles = async (
   config: NewsSourceConfig,
   keyword: string | undefined,
   perSource: number,
+  page?: number,
 ): Promise<RawArticle[]> => {
   const response = await fetchJson<GuardianApiResponse>(
-    buildGuardianUrl(config, keyword, perSource),
+    buildGuardianUrl(config, keyword, perSource, page),
   );
 
   return (response.response?.results ?? []).map((article, index) => ({
@@ -341,10 +359,11 @@ const collectLiveArticles = async (
   config: NewsSourceConfig,
   keyword: string | undefined,
   perSource: number,
+  page?: number,
 ): Promise<RawArticle[]> => {
   switch (config.provider) {
     case "guardian-search":
-      return collectGuardianArticles(config, keyword, perSource);
+      return collectGuardianArticles(config, keyword, perSource, page);
     case "generic-query":
       return collectGenericArticles(config, keyword, perSource);
     case "nyt-top-stories":
@@ -358,6 +377,7 @@ const collectFromSource = async (
   config: NewsSourceConfig,
   keyword: string | undefined,
   perSource: number,
+  pages: number = 1,
 ): Promise<{ articles: RawArticle[]; summary: SourceCollectionResult }> => {
   const hasConfiguredKey = !isPlaceholderSecret(config.apiKey);
   const hasConfiguredUrl = !config.apiUrl || !isPlaceholderSecret(config.apiUrl);
@@ -366,19 +386,47 @@ const collectFromSource = async (
     let articles: RawArticle[] = [];
 
     if (hasConfiguredKey && hasConfiguredUrl) {
-      articles = await collectLiveArticles(config, keyword, perSource);
-    }
+      if (pages > 1 && config.provider === "guardian-search") {
+        const collectedPages: number[] = [];
+        for (let page = 1; page <= pages; page += 1) {
+          const pageArticles = await collectLiveArticles(config, keyword, perSource, page);
+          if (pageArticles.length === 0) {
+            break;
+          }
+          articles.push(...pageArticles);
+          collectedPages.push(page);
+        }
 
-    if (articles.length > 0) {
-      return {
-        articles,
-        summary: {
-          sourceId: config.id,
-          sourceName: config.name,
-          articlesCollected: articles.length,
-          mode: "live",
-        },
-      };
+        const note = collectedPages.length
+          ? `Collected pages ${collectedPages[0]}-${collectedPages[collectedPages.length - 1]}`
+          : "No articles found for requested pages.";
+
+        if (articles.length > 0) {
+          return {
+            articles,
+            summary: {
+              sourceId: config.id,
+              sourceName: config.name,
+              articlesCollected: articles.length,
+              mode: "live",
+              note,
+            },
+          };
+        }
+      } else {
+        articles = await collectLiveArticles(config, keyword, perSource);
+        if (articles.length > 0) {
+          return {
+            articles,
+            summary: {
+              sourceId: config.id,
+              sourceName: config.name,
+              articlesCollected: articles.length,
+              mode: "live",
+            },
+          };
+        }
+      }
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown collection failure";
@@ -420,7 +468,7 @@ export const collectArticlesFromSources = async (
   const articles: RawArticle[] = [];
 
   for (const source of selectedSources) {
-    const result = await collectFromSource(source, options.keyword, perSource);
+    const result = await collectFromSource(source, options.keyword, perSource, options.pages ?? 1);
     articles.push(...result.articles);
     sourceBreakdown.push(result.summary);
   }
