@@ -3,6 +3,10 @@ import { describe, it, expect, afterAll } from "@jest/globals";
 import { app, server } from "../src/main";
 
 afterAll((done) => {
+  if (!server) {
+    done();
+    return;
+  }
   server.close(done);
 });
 

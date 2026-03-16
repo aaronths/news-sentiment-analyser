@@ -6,7 +6,13 @@ import {
   getArticleById,
   getArticleSentiment,
   getSentiment,
+  getSentimentBySource,
+  getSentimentComparison,
   getSentimentTrend,
+  getSentimentTrendChart,
+  getMonthlyMentionsBySourceChart,
+  getMonthlyMentionsBySourceChartImage,
+  getSourceComparisonChart,
   getTrending,
   getSources,
 } from "../controllers/retrieval.controller";
@@ -36,6 +42,12 @@ retrievalRouter.get("/articles/:id(*)/sentiment", getArticleSentiment);
 // entire remainder of the path. express 4+ allows `(*)` for this purpose.
 retrievalRouter.get("/articles/:id(*)", getArticleById);
 retrievalRouter.get("/sentiment", getSentiment);
+retrievalRouter.get("/sentiment/source", getSentimentBySource);
+retrievalRouter.get("/sentiment/compare", getSentimentComparison);
 retrievalRouter.get("/sentiment/trend", getSentimentTrend);
 retrievalRouter.get("/trending", getTrending);
 retrievalRouter.get("/sources", getSources);
+retrievalRouter.get("/chart/sentiment/trend", getSentimentTrendChart);
+retrievalRouter.get("/chart/sources/compare", getSourceComparisonChart);
+retrievalRouter.get("/chart/mentions/monthly", getMonthlyMentionsBySourceChart);
+retrievalRouter.get("/chart/mentions/monthly.png", getMonthlyMentionsBySourceChartImage);

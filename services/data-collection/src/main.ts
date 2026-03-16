@@ -6,6 +6,7 @@ loadEnvironment();
 
 export const app = express();
 const PORT = process.env.DATA_COLLECTION_PORT || process.env.PORT || 8000;
+const shouldListen = process.env.JEST_WORKER_ID === undefined;
 
 app.use(express.json());
 
@@ -16,7 +17,9 @@ app.get("/health", (req, res) => {
 
 app.use("/api", collectionRouter);
 
-// Export the server so tests can close it and avoid open handle warnings
-export const server = app.listen(PORT, () => {
-  console.log(`Data Collection service running on port ${PORT}`);
-});
+// Avoid binding a real port inside Jest; supertest can run directly against the app.
+export const server = shouldListen
+  ? app.listen(PORT, () => {
+      console.log(`Data Collection service running on port ${PORT}`);
+    })
+  : null;

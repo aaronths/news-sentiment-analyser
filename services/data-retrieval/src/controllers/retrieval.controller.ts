@@ -1,10 +1,182 @@
 import { Request, Response } from "express";
+import type { ChartConfiguration } from "chart.js";
 import {
+  aggregateSources,
   searchArticles,
   computeSentimentForArticles,
+  filterArticlesByDateRange,
+  filterArticlesByTimeframe,
+  getTrendingKeywords,
+  loadCleanArticles,
   parseLimit,
+  parseTimeframe,
   labelForCompound,
+  Timeframe,
 } from "../services/articles.service";
+import { parseChartDimension, renderChartToPng } from "../services/charts.service";
+
+const MONTH_LABELS = [
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
+];
+
+const CHART_COLORS = [
+  "#1f77b4",
+  "#ff7f0e",
+  "#2ca02c",
+  "#d62728",
+  "#9467bd",
+  "#8c564b",
+  "#e377c2",
+  "#7f7f7f",
+  "#bcbd22",
+  "#17becf",
+];
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function titleContainsKeyword(title: string, keyword: string): boolean {
+  const normalizedTitle = String(title || "");
+  const normalizedKeyword = String(keyword || "").trim();
+  if (!normalizedKeyword) {
+    return false;
+  }
+
+  if (normalizedKeyword.includes(" ")) {
+    return normalizedTitle.toLowerCase().includes(normalizedKeyword.toLowerCase());
+  }
+
+  const pattern = new RegExp(`\\b${escapeRegExp(normalizedKeyword)}\\b`, "i");
+  return pattern.test(normalizedTitle);
+}
+
+function parseYear(raw: string | undefined, fallback: number): number | null {
+  const normalized = String(raw || "").trim();
+  if (!normalized) {
+    return fallback;
+  }
+
+  const parsed = Number.parseInt(normalized, 10);
+  if (Number.isNaN(parsed) || parsed < 2000 || parsed > 2100) {
+    return null;
+  }
+  return parsed;
+}
+
+function parseSourceLimit(raw: string | undefined, fallback: number): number {
+  const normalized = String(raw || "").trim();
+  if (!normalized) {
+    return fallback;
+  }
+
+  const parsed = Number.parseInt(normalized, 10);
+  if (Number.isNaN(parsed)) {
+    return fallback;
+  }
+  return Math.min(Math.max(parsed, 1), 20);
+}
+
+type MonthlyMentionsDataset = {
+  label: string;
+  data: number[];
+  backgroundColor: string;
+  borderColor: string;
+  borderWidth: number;
+};
+
+type MonthlyMentionsChartPayload = {
+  chartType: "bar";
+  labels: string[];
+  datasets: MonthlyMentionsDataset[];
+  meta: {
+    keyword: string;
+    year: number;
+    sourceLimit: number;
+    sourcesCompared: number;
+    totalMentions: number;
+  };
+};
+
+async function buildMonthlyMentionsBySourceChartPayload(
+  keyword: string,
+  year: number,
+  sourceLimit: number,
+): Promise<MonthlyMentionsChartPayload> {
+  const articles = await loadCleanArticles();
+
+  const bySource = new Map<
+    string,
+    {
+      sourceName: string;
+      monthlyCounts: number[];
+      totalMentions: number;
+    }
+  >();
+
+  for (const article of articles) {
+    const title = String(article.title || "");
+    if (!titleContainsKeyword(title, keyword)) {
+      continue;
+    }
+
+    const publishedAt = new Date(String(article.publishedAt || ""));
+    if (Number.isNaN(publishedAt.getTime()) || publishedAt.getUTCFullYear() !== year) {
+      continue;
+    }
+
+    const sourceId = String(article.sourceId || "unknown").trim() || "unknown";
+    const sourceName = String(article.sourceName || sourceId || "Unknown");
+    const monthIndex = publishedAt.getUTCMonth();
+    const bucket = bySource.get(sourceId) || {
+      sourceName,
+      monthlyCounts: new Array(12).fill(0),
+      totalMentions: 0,
+    };
+
+    bucket.monthlyCounts[monthIndex] += 1;
+    bucket.totalMentions += 1;
+    bySource.set(sourceId, bucket);
+  }
+
+  const rankedSources = Array.from(bySource.entries())
+    .sort((a, b) => b[1].totalMentions - a[1].totalMentions)
+    .slice(0, sourceLimit);
+
+  const datasets = rankedSources.map(([, bucket], index) => ({
+    label: bucket.sourceName,
+    data: bucket.monthlyCounts,
+    backgroundColor: CHART_COLORS[index % CHART_COLORS.length],
+    borderColor: "#1f2937",
+    borderWidth: 1,
+  }));
+
+  const totalMentions = rankedSources.reduce((sum, [, bucket]) => sum + bucket.totalMentions, 0);
+
+  return {
+    chartType: "bar",
+    labels: MONTH_LABELS,
+    datasets,
+    meta: {
+      keyword,
+      year,
+      sourceLimit,
+      sourcesCompared: datasets.length,
+      totalMentions,
+    },
+  };
+}
 
 // health/test helper that's kept for backwards compatibility
 export const performTest = async (req: Request, res: Response) => {
@@ -20,8 +192,14 @@ export const getArticles = async (req: Request, res: Response) => {
 
   const sourceId = String(req.query.sourceId || "").trim() || undefined;
   const limit = parseLimit(String(req.query.limit || ""));
+  const startDate = String(req.query.startDate || "").trim() || undefined;
+  const endDate = String(req.query.endDate || "").trim() || undefined;
 
-  const matched = await searchArticles(keyword, sourceId);
+  const matched = filterArticlesByDateRange(
+    await searchArticles(keyword, sourceId),
+    startDate,
+    endDate,
+  );
 
   // compute sentiment rankings similar to the Python runtime
   const scored = await computeSentimentForArticles(matched);
@@ -97,7 +275,9 @@ export const getArticles = async (req: Request, res: Response) => {
     articles: topArticles,
     self: `?keyword=${encodeURIComponent(keyword)}&sourceId=${encodeURIComponent(
       sourceId || ""
-    )}&limit=${limit}`,
+    )}&limit=${limit}&startDate=${encodeURIComponent(
+      startDate || ""
+    )}&endDate=${encodeURIComponent(endDate || "")}`,
   });
 };
 
@@ -158,7 +338,16 @@ export const getSentiment = async (req: Request, res: Response) => {
   if (!keyword) {
     return res.status(400).json({ code: 400, message: "keyword required" });
   }
-  const matched = await searchArticles(keyword);
+  const sourceId = String(req.query.sourceId || "").trim() || undefined;
+  const timeframe = parseTimeframe(String(req.query.timeframe || "").trim(), "7d");
+  if (!timeframe) {
+    return res.status(400).json({ code: 400, message: "Invalid timeframe parameter" });
+  }
+
+  const matched = filterArticlesByTimeframe(
+    await searchArticles(keyword, sourceId),
+    timeframe,
+  );
   const scored = await computeSentimentForArticles(matched);
   const distribution = { positive: 0, neutral: 0, negative: 0 };
   scored.forEach((entry) => {
@@ -167,7 +356,14 @@ export const getSentiment = async (req: Request, res: Response) => {
   });
   const avg =
     scored.reduce((sum, e) => sum + e.scores.compound, 0) / (scored.length || 1);
-  res.json({ keyword, articleCount: matched.length, averageSentiment: avg, distribution });
+  res.json({
+    keyword,
+    sourceId,
+    timeframe,
+    articleCount: matched.length,
+    averageSentiment: Number(avg.toFixed(4)),
+    distribution,
+  });
 };
 
 export const getSentimentTrend = async (req: Request, res: Response) => {
@@ -175,32 +371,339 @@ export const getSentimentTrend = async (req: Request, res: Response) => {
   if (!keyword) {
     return res.status(400).json({ code: 400, message: "keyword required" });
   }
-  const timeframe = String(req.query.timeframe || "7d");
-  const allowed = ["24h", "7d", "30d"];
-  if (timeframe && !allowed.includes(timeframe)) {
-    return res.status(401).json({ code: 401, message: "Invalid timeframe parameter" });
+  const sourceId = String(req.query.sourceId || "").trim() || undefined;
+  const timeframe = parseTimeframe(String(req.query.timeframe || "").trim(), "7d");
+  if (!timeframe) {
+    return res.status(400).json({ code: 400, message: "Invalid timeframe parameter" });
   }
 
-  // rudimentary stub: always return empty dataPoints for now
-  res.json({ keyword, timeframe, dataPoints: [] });
+  const matched = filterArticlesByTimeframe(
+    await searchArticles(keyword, sourceId),
+    timeframe,
+  );
+  const scored = await computeSentimentForArticles(matched);
+
+  const byDate = new Map<string, { compoundTotal: number; articleCount: number }>();
+  for (const entry of scored) {
+    const dateKey = String(entry.article.publishedAt || "").slice(0, 10);
+    if (!dateKey) {
+      continue;
+    }
+    const bucket = byDate.get(dateKey) || { compoundTotal: 0, articleCount: 0 };
+    bucket.compoundTotal += entry.scores.compound;
+    bucket.articleCount += 1;
+    byDate.set(dateKey, bucket);
+  }
+
+  const dataPoints = Array.from(byDate.entries())
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([date, stats]) => ({
+      date,
+      averageSentiment: Number((stats.compoundTotal / stats.articleCount).toFixed(4)),
+      articleCount: stats.articleCount,
+    }));
+
+  res.json({ keyword, sourceId, timeframe, dataPoints });
 };
 
 export const getTrending = async (req: Request, res: Response) => {
-  const timeframe = String(req.query.timeframe || "24h");
-  const allowed = ["24h", "7d", "30d"];
-  if (timeframe && !allowed.includes(timeframe)) {
-    return res.status(401).json({ code: 401, message: "Invalid timeframe parameter" });
+  const timeframe = parseTimeframe(String(req.query.timeframe || "").trim(), "24h");
+  if (!timeframe) {
+    return res.status(400).json({ code: 400, message: "Invalid timeframe parameter" });
   }
-  res.json([]);
+  const limit = parseLimit(String(req.query.limit || "10"));
+
+  const recentArticles = filterArticlesByTimeframe(await loadCleanArticles(), timeframe);
+  const trending = getTrendingKeywords(recentArticles, limit);
+  res.json({ timeframe, keywords: trending });
 };
 
 export const getSources = async (req: Request, res: Response) => {
-  let limit = parseInt(String(req.query.limit || ""), 10);
-  if (isNaN(limit) || limit < 1) {
+  let limit = parseInt(String(req.query.limit || "50"), 10);
+  if (Number.isNaN(limit) || limit < 1) {
     limit = 50;
   }
+  limit = Math.min(limit, 100);
 
-  // no real source index yet
-  res.json([]);
+  const timeframe = parseTimeframe(String(req.query.timeframe || "").trim(), "30d");
+  if (!timeframe) {
+    return res.status(400).json({ code: 400, message: "Invalid timeframe parameter" });
+  }
+
+  const recentArticles = filterArticlesByTimeframe(await loadCleanArticles(), timeframe);
+  const sources = aggregateSources(recentArticles).slice(0, limit);
+
+  res.json(
+    sources.map((source) => ({
+      id: source.id,
+      name: source.name,
+      url: source.url,
+      articleCount: source.articleCount,
+      latestPublishedAt: source.latestPublishedAt,
+    })),
+  );
+};
+
+const computeSourceSummary = async (
+  keyword: string,
+  sourceId: string,
+  timeframe: Timeframe,
+) => {
+  const matched = filterArticlesByTimeframe(await searchArticles(keyword, sourceId), timeframe);
+  const scored = await computeSentimentForArticles(matched);
+  const avg =
+    scored.reduce((sum, entry) => sum + entry.scores.compound, 0) / (scored.length || 1);
+
+  const distribution = { positive: 0, neutral: 0, negative: 0 };
+  for (const entry of scored) {
+    const label = labelForCompound(entry.scores.compound);
+    distribution[label as keyof typeof distribution] += 1;
+  }
+
+  return {
+    keyword,
+    sourceId,
+    sourceName: scored[0]?.article.sourceName || sourceId,
+    timeframe,
+    articleCount: matched.length,
+    averageSentiment: Number(avg.toFixed(4)),
+    distribution,
+  };
+};
+
+export const getSentimentBySource = async (req: Request, res: Response) => {
+  const keyword = String(req.query.keyword || "").trim();
+  const sourceId = String(req.query.sourceId || "").trim();
+  if (!keyword) {
+    return res.status(400).json({ code: 400, message: "keyword required" });
+  }
+  if (!sourceId) {
+    return res.status(400).json({ code: 400, message: "sourceId required" });
+  }
+
+  const timeframe = parseTimeframe(String(req.query.timeframe || "").trim(), "7d");
+  if (!timeframe) {
+    return res.status(400).json({ code: 400, message: "Invalid timeframe parameter" });
+  }
+
+  const summary = await computeSourceSummary(keyword, sourceId, timeframe);
+  res.json(summary);
+};
+
+export const getSentimentComparison = async (req: Request, res: Response) => {
+  const keyword = String(req.query.keyword || "").trim();
+  if (!keyword) {
+    return res.status(400).json({ code: 400, message: "keyword required" });
+  }
+
+  const timeframe = parseTimeframe(String(req.query.timeframe || "").trim(), "7d");
+  if (!timeframe) {
+    return res.status(400).json({ code: 400, message: "Invalid timeframe parameter" });
+  }
+
+  const sourceIdsParam = String(req.query.sourceIds || "").trim();
+  const requestedSourceIds = sourceIdsParam
+    ? sourceIdsParam
+        .split(",")
+        .map((value) => value.trim())
+        .filter(Boolean)
+    : [];
+
+  const matched = filterArticlesByTimeframe(await searchArticles(keyword), timeframe);
+  const availableSourceIds = Array.from(new Set(matched.map((a) => String(a.sourceId))));
+  const sourceIds = requestedSourceIds.length ? requestedSourceIds : availableSourceIds;
+
+  const comparisons = [];
+  for (const sourceId of sourceIds) {
+    comparisons.push(await computeSourceSummary(keyword, sourceId, timeframe));
+  }
+
+  res.json({
+    keyword,
+    timeframe,
+    sourcesCompared: comparisons.length,
+    comparisons: comparisons.sort((a, b) => b.averageSentiment - a.averageSentiment),
+  });
+};
+
+export const getSentimentTrendChart = async (req: Request, res: Response) => {
+  const keyword = String(req.query.keyword || "").trim();
+  if (!keyword) {
+    return res.status(400).json({ code: 400, message: "keyword required" });
+  }
+
+  const timeframe = parseTimeframe(String(req.query.timeframe || "").trim(), "7d");
+  if (!timeframe) {
+    return res.status(400).json({ code: 400, message: "Invalid timeframe parameter" });
+  }
+
+  const sourceId = String(req.query.sourceId || "").trim() || undefined;
+  const matched = filterArticlesByTimeframe(
+    await searchArticles(keyword, sourceId),
+    timeframe,
+  );
+  const scored = await computeSentimentForArticles(matched);
+
+  const byDate = new Map<string, { compoundTotal: number; articleCount: number }>();
+  for (const entry of scored) {
+    const dateKey = String(entry.article.publishedAt || "").slice(0, 10);
+    if (!dateKey) continue;
+    const bucket = byDate.get(dateKey) || { compoundTotal: 0, articleCount: 0 };
+    bucket.compoundTotal += entry.scores.compound;
+    bucket.articleCount += 1;
+    byDate.set(dateKey, bucket);
+  }
+
+  const sorted = Array.from(byDate.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+  const labels = sorted.map(([date]) => date);
+  const sentimentData = sorted.map(([, stats]) =>
+    Number((stats.compoundTotal / stats.articleCount).toFixed(4)),
+  );
+  const articleCountData = sorted.map(([, stats]) => stats.articleCount);
+
+  res.json({
+    chartType: "line",
+    labels,
+    datasets: [
+      {
+        label: "Average Sentiment",
+        data: sentimentData,
+        borderColor: "#1f77b4",
+        yAxisID: "y",
+      },
+      {
+        label: "Article Count",
+        data: articleCountData,
+        borderColor: "#ff7f0e",
+        yAxisID: "y1",
+      },
+    ],
+    meta: { keyword, sourceId, timeframe },
+  });
+};
+
+export const getSourceComparisonChart = async (req: Request, res: Response) => {
+  const keyword = String(req.query.keyword || "").trim();
+  if (!keyword) {
+    return res.status(400).json({ code: 400, message: "keyword required" });
+  }
+
+  const timeframe = parseTimeframe(String(req.query.timeframe || "").trim(), "7d");
+  if (!timeframe) {
+    return res.status(400).json({ code: 400, message: "Invalid timeframe parameter" });
+  }
+
+  const sourceIdsParam = String(req.query.sourceIds || "").trim();
+  const requestedSourceIds = sourceIdsParam
+    ? sourceIdsParam
+        .split(",")
+        .map((value) => value.trim())
+        .filter(Boolean)
+    : [];
+
+  const matched = filterArticlesByTimeframe(await searchArticles(keyword), timeframe);
+  const availableSourceIds = Array.from(new Set(matched.map((a) => String(a.sourceId))));
+  const sourceIds = requestedSourceIds.length ? requestedSourceIds : availableSourceIds;
+
+  const comparisons = [];
+  for (const sourceId of sourceIds) {
+    comparisons.push(await computeSourceSummary(keyword, sourceId, timeframe));
+  }
+
+  const sorted = comparisons.sort((a, b) => b.averageSentiment - a.averageSentiment);
+
+  res.json({
+    chartType: "bar",
+    labels: sorted.map((item) => item.sourceName),
+    datasets: [
+      {
+        label: "Average Sentiment",
+        data: sorted.map((item) => item.averageSentiment),
+        backgroundColor: "#2ca02c",
+      },
+      {
+        label: "Article Count",
+        data: sorted.map((item) => item.articleCount),
+        backgroundColor: "#9467bd",
+      },
+    ],
+    meta: { keyword, timeframe },
+  });
+};
+
+export const getMonthlyMentionsBySourceChart = async (req: Request, res: Response) => {
+  const keyword = String(req.query.keyword || "").trim();
+  if (!keyword) {
+    return res.status(400).json({ code: 400, message: "keyword required" });
+  }
+
+  const year = parseYear(String(req.query.year || ""), new Date().getUTCFullYear());
+  if (!year) {
+    return res.status(400).json({ code: 400, message: "Invalid year parameter" });
+  }
+
+  const sourceLimit = parseSourceLimit(String(req.query.sourceLimit || ""), 6);
+  const chartPayload = await buildMonthlyMentionsBySourceChartPayload(keyword, year, sourceLimit);
+
+  res.json(chartPayload);
+};
+
+export const getMonthlyMentionsBySourceChartImage = async (req: Request, res: Response) => {
+  const keyword = String(req.query.keyword || "").trim();
+  if (!keyword) {
+    return res.status(400).json({ code: 400, message: "keyword required" });
+  }
+
+  const year = parseYear(String(req.query.year || ""), new Date().getUTCFullYear());
+  if (!year) {
+    return res.status(400).json({ code: 400, message: "Invalid year parameter" });
+  }
+
+  const sourceLimit = parseSourceLimit(String(req.query.sourceLimit || ""), 6);
+  const width = parseChartDimension(String(req.query.width || ""), 1400, 400, 2600);
+  const height = parseChartDimension(String(req.query.height || ""), 800, 300, 1600);
+
+  const chartPayload = await buildMonthlyMentionsBySourceChartPayload(keyword, year, sourceLimit);
+
+  const chartConfig: ChartConfiguration = {
+    type: "bar",
+    data: {
+      labels: chartPayload.labels,
+      datasets: chartPayload.datasets,
+    },
+    options: {
+      responsive: false,
+      plugins: {
+        title: {
+          display: true,
+          text: `Monthly title mentions for \"${keyword}\" in ${year}`,
+        },
+        legend: {
+          display: true,
+          position: "bottom",
+        },
+      },
+      scales: {
+        x: {
+          title: {
+            display: true,
+            text: "Month",
+          },
+        },
+        y: {
+          beginAtZero: true,
+          title: {
+            display: true,
+            text: "Title mentions",
+          },
+        },
+      },
+    },
+  };
+
+  const image = await renderChartToPng(chartConfig, width, height);
+  res.setHeader("Content-Type", "image/png");
+  res.setHeader("Cache-Control", "no-store");
+  res.send(image);
 };
 

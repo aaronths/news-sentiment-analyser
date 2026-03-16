@@ -34,19 +34,30 @@ export const uploadFileToS3 = async (options: {
   const fileContents = await fs.readFile(options.filePath);
   const client = createClient();
 
-  await client.send(
-    new PutObjectCommand({
-      Bucket: bucket,
-      Key: options.key,
-      Body: fileContents,
-      ContentType: options.contentType,
-    }),
-  );
+  try {
+    await client.send(
+      new PutObjectCommand({
+        Bucket: bucket,
+        Key: options.key,
+        Body: fileContents,
+        ContentType: options.contentType,
+      }),
+    );
 
-  return {
-    bucket,
-    key: options.key,
-    uploaded: true,
-    location: buildLocation(bucket, options.key),
-  };
+    return {
+      bucket,
+      key: options.key,
+      uploaded: true,
+      location: buildLocation(bucket, options.key),
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return {
+      bucket,
+      key: options.key,
+      uploaded: false,
+      location: buildFileLocation(options.filePath),
+      note: `S3 upload failed: ${message}`,
+    };
+  }
 };

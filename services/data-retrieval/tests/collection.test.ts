@@ -6,6 +6,10 @@ import { app, server } from "../src/main";
 
 // ensure the HTTP server is closed after tests
 afterAll((done) => {
+  if (!server) {
+    done();
+    return;
+  }
   server.close(done);
 });
 
@@ -16,6 +20,7 @@ beforeAll(() => {
   // service expects the fallback at project-root/data/clean-articles.json
   // __dirname is services/data-retrieval/tests; go up three levels to repo root
   const dataPath = path.resolve(__dirname, "../../../data/clean-articles.json");
+  const currentYear = new Date().getUTCFullYear();
   const sample = [
     {
       id: "test_article",
@@ -41,6 +46,42 @@ beforeAll(() => {
       keywordTokens: ["customscore", "market"],
       sentimentText: "Fantastic outcomes and optimistic language.",
       sentiment: -0.8
+    },
+    {
+      id: "trump_jan_test",
+      sourceId: "test",
+      sourceName: "Test Source",
+      title: "Trump rally draws crowds",
+      body: "Coverage focused on Trump and campaign reactions.",
+      summary: "Trump mention in January",
+      publishedAt: `${currentYear}-01-15T12:00:00.000Z`,
+      url: "http://example.com/trump-jan",
+      keywordTokens: ["trump", "campaign"],
+      sentimentText: "Coverage focused on Trump and campaign reactions."
+    },
+    {
+      id: "trump_feb_precomputed",
+      sourceId: "precomputed",
+      sourceName: "Precomputed Source",
+      title: "Markets react as Trump comments on policy",
+      body: "Analysts examined financial impact after Trump remarks.",
+      summary: "Trump mention in February",
+      publishedAt: `${currentYear}-02-11T08:30:00.000Z`,
+      url: "http://example.com/trump-feb",
+      keywordTokens: ["trump", "markets"],
+      sentimentText: "Analysts examined financial impact after Trump remarks."
+    },
+    {
+      id: "trump_feb_test",
+      sourceId: "test",
+      sourceName: "Test Source",
+      title: "Analysts discuss Trump speech",
+      body: "Another article mentioning Trump in title for monthly chart checks.",
+      summary: "Second Trump mention in February",
+      publishedAt: `${currentYear}-02-23T17:45:00.000Z`,
+      url: "http://example.com/trump-feb-2",
+      keywordTokens: ["trump", "speech"],
+      sentimentText: "Another article mentioning Trump in title for monthly chart checks."
     }
   ];
   fs.mkdirSync(path.dirname(dataPath), { recursive: true });
@@ -141,6 +182,91 @@ describe("Swagger endpoints", () => {
     const res = await request(app)
       .get("/api/charts/rankings.png")
       .query({ keyword: "economy" });
+
+    expect(res.status).toBe(200);
+    expect(res.headers["content-type"]).toContain("image/png");
+    expect(res.body).toBeDefined();
+  });
+
+  it("GET /api/sources returns indexed source list", async () => {
+    const res = await request(app).get("/api/sources").query({ limit: 5 });
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body)).toBe(true);
+  });
+
+  it("GET /api/trending returns keyword frequencies", async () => {
+    const res = await request(app).get("/api/trending").query({ timeframe: "30d", limit: 5 });
+    expect(res.status).toBe(200);
+    expect(res.body.timeframe).toBe("30d");
+    expect(Array.isArray(res.body.keywords)).toBe(true);
+  });
+
+  it("GET /api/sentiment/source requires sourceId", async () => {
+    const res = await request(app)
+      .get("/api/sentiment/source")
+      .query({ keyword: "economy" });
+    expect(res.status).toBe(400);
+  });
+
+  it("GET /api/sentiment/source returns source summary", async () => {
+    const res = await request(app)
+      .get("/api/sentiment/source")
+      .query({ keyword: "economy", sourceId: "test", timeframe: "30d" });
+    expect(res.status).toBe(200);
+    expect(res.body.sourceId).toBe("test");
+    expect(res.body.keyword).toBe("economy");
+  });
+
+  it("GET /api/sentiment/compare returns comparison payload", async () => {
+    const res = await request(app)
+      .get("/api/sentiment/compare")
+      .query({ keyword: "economy", timeframe: "30d" });
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body.comparisons)).toBe(true);
+  });
+
+  it("GET /api/chart/sentiment/trend returns chart-ready payload", async () => {
+    const res = await request(app)
+      .get("/api/chart/sentiment/trend")
+      .query({ keyword: "economy", timeframe: "30d" });
+    expect(res.status).toBe(200);
+    expect(res.body.chartType).toBe("line");
+    expect(Array.isArray(res.body.labels)).toBe(true);
+    expect(Array.isArray(res.body.datasets)).toBe(true);
+  });
+
+  it("GET /api/chart/sources/compare returns chart-ready payload", async () => {
+    const res = await request(app)
+      .get("/api/chart/sources/compare")
+      .query({ keyword: "economy", timeframe: "30d" });
+    expect(res.status).toBe(200);
+    expect(res.body.chartType).toBe("bar");
+    expect(Array.isArray(res.body.labels)).toBe(true);
+    expect(Array.isArray(res.body.datasets)).toBe(true);
+  });
+
+  it("GET /api/chart/mentions/monthly returns grouped monthly mentions chart", async () => {
+    const year = new Date().getUTCFullYear();
+    const res = await request(app)
+      .get("/api/chart/mentions/monthly")
+      .query({ keyword: "Trump", year, sourceLimit: 5 });
+
+    expect(res.status).toBe(200);
+    expect(res.body.chartType).toBe("bar");
+    expect(Array.isArray(res.body.labels)).toBe(true);
+    expect(res.body.labels).toHaveLength(12);
+    expect(Array.isArray(res.body.datasets)).toBe(true);
+    expect(res.body.datasets.length).toBeGreaterThan(0);
+    expect(res.body.meta.keyword).toBe("Trump");
+    expect(res.body.meta.year).toBe(year);
+    expect(res.body.meta.totalMentions).toBeGreaterThan(0);
+  });
+
+  it("GET /api/chart/mentions/monthly.png returns image", async () => {
+    const year = new Date().getUTCFullYear();
+    const res = await request(app)
+      .get("/api/chart/mentions/monthly.png")
+      .query({ keyword: "Trump", year, sourceLimit: 5 });
 
     expect(res.status).toBe(200);
     expect(res.headers["content-type"]).toContain("image/png");

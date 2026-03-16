@@ -12,6 +12,10 @@ import { IngestionSummary } from "../types/article";
 interface IngestionOptions {
   perSource?: number;
   sourceIds?: string[];
+  /**
+   * Number of pages to request per source (if the source supports pagination).
+   */
+  pages?: number;
 }
 
 const resolveRawKey = () => process.env.NEWS_DATA_RAW_KEY?.trim() || "raw/raw-articles.json";
@@ -24,6 +28,7 @@ export const runIngestionPipeline = async (
   const { articles, sourceBreakdown } = await collectArticlesFromSources({
     sourceIds: options.sourceIds,
     perSource: options.perSource ?? 10,
+    pages: options.pages,
   });
 
   const rawStorageResult = await appendRawArticles(articles);

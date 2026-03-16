@@ -1,18 +1,20 @@
 openapi: 3.0.0
 info:
   title: News Sentiment Analyzer - Retrieval API
-  description: API for retrieving news articles and analyzing sentiment based on keywords.
-  version: 1.1.0
+  description: API for retrieving indexed news and running sentiment analytics.
+  version: 1.2.0
 
 servers:
-  - url: "https://mbqiv0owad.execute-api.us-east-1.amazonaws.com/dev"
-    description: AWS API Gateway (Dev Environment)
+  - url: http://localhost:8000
+    description: Local development server
+  - url: https://mbqiv0owad.execute-api.us-east-1.amazonaws.com/dev
+    description: AWS API Gateway (Dev environment)
 
 paths:
   /api/articles:
     get:
       summary: Retrieve articles by keyword
-      description: Returns a list of articles matching a keyword
+      description: Returns ranked sources and top matching articles for a keyword.
       parameters:
         - name: keyword
           in: query
@@ -20,12 +22,18 @@ paths:
           schema:
             type: string
           example: inflation
+        - name: sourceId
+          in: query
+          required: false
+          schema:
+            type: string
+          example: guardian
         - name: limit
           in: query
           required: false
           schema:
             type: integer
-            default: 10
+            default: 20
           example: 5
         - name: startDate
           in: query
@@ -41,15 +49,13 @@ paths:
             format: date
       responses:
         "200":
-          description: List of articles
+          description: Search result payload
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/Article"
+                $ref: "#/components/schemas/ArticlesResponse"
 
-  /articles/metadata:
+  /api/articles/metadata:
     get:
       summary: Retrieve article metadata
       description: Returns article titles, authors, dates, and sources without the full body
@@ -69,7 +75,7 @@ paths:
                 items:
                   $ref: "#/components/schemas/ArticleMetadata"
 
-  /articles/{id}:
+  /api/articles/{id}:
     get:
       summary: Retrieve a single article by ID
       description: Returns the full article including body content
@@ -94,7 +100,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ArticleNotFoundError"
 
-  /articles/{id}/sentiment:
+  /api/articles/{id}/sentiment:
     get:
       summary: Get sentiment for a single article
       description: Returns sentiment analysis scoped to a specific article by ID
@@ -119,7 +125,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ArticleNotFoundError"
 
-  /sentiment:
+  /api/sentiment:
     get:
       summary: Get sentiment analysis for a keyword
       description: Runs sentiment analysis on articles matching a keyword
@@ -130,6 +136,20 @@ paths:
           schema:
             type: string
           example: economy
+        - name: sourceId
+          in: query
+          required: false
+          schema:
+            type: string
+          example: guardian
+        - name: timeframe
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [24h, 7d, 30d]
+            default: 7d
+          example: 7d
       responses:
         "200":
           description: Sentiment result
@@ -138,7 +158,73 @@ paths:
               schema:
                 $ref: "#/components/schemas/SentimentResult"
 
-  /sentiment/trend:
+  /api/sentiment/source:
+    get:
+      summary: Get source-specific sentiment for a keyword
+      description: Returns sentiment metrics for one keyword within one source.
+      parameters:
+        - name: keyword
+          in: query
+          required: true
+          schema:
+            type: string
+          example: inflation
+        - name: sourceId
+          in: query
+          required: true
+          schema:
+            type: string
+          example: guardian
+        - name: timeframe
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [24h, 7d, 30d]
+            default: 7d
+          example: 7d
+      responses:
+        "200":
+          description: Source sentiment summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SentimentResult"
+
+  /api/sentiment/compare:
+    get:
+      summary: Compare source sentiment for a keyword
+      description: Returns sentiment comparison across source outlets for one keyword.
+      parameters:
+        - name: keyword
+          in: query
+          required: true
+          schema:
+            type: string
+          example: inflation
+        - name: sourceIds
+          in: query
+          required: false
+          schema:
+            type: string
+          example: guardian,nyt
+        - name: timeframe
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [24h, 7d, 30d]
+            default: 7d
+          example: 7d
+      responses:
+        "200":
+          description: Source sentiment comparison response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SentimentComparisonResponse"
+
+  /api/sentiment/trend:
     get:
       summary: Get sentiment trend for a keyword over time
       description: Returns how sentiment for a specific keyword has changed over a given timeframe, bucketed by day
@@ -149,6 +235,12 @@ paths:
           schema:
             type: string
           example: inflation
+        - name: sourceId
+          in: query
+          required: false
+          schema:
+            type: string
+          example: guardian
         - name: timeframe
           in: query
           required: false
@@ -165,22 +257,16 @@ paths:
               schema:
                 $ref: "#/components/schemas/SentimentTrend"
         "400":
-          description: Invalid or missing keyword parameter
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/KeywordError"
-        "401":
-          description: Invalid or missing timeframe parameter
+          description: Invalid or missing keyword/timeframe parameter
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/TimeframeError"
 
-  /trending:
+  /api/trending:
     get:
       summary: Retrieve trending keywords
-      description: Returns keywords currently trending based on article frequency
+      description: Returns keywords currently trending based on article frequency.
       parameters:
         - name: timeframe
           in: query
@@ -189,23 +275,27 @@ paths:
             type: string
             enum: [24h, 7d, 30d]
             default: 24h
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 10
       responses:
         "200":
           description: Trending keywords
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  type: string
-        "401":
+                $ref: "#/components/schemas/TrendingResponse"
+        "400":
           description: Invalid or missing timeframe parameter
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/TimeframeError"
 
-  /sources:
+  /api/sources:
     get:
       summary: List available news sources
       description: Returns all news sources currently indexed in the system
@@ -217,6 +307,13 @@ paths:
             type: integer
             default: 50
           example: 20
+        - name: timeframe
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [24h, 7d, 30d]
+            default: 30d
       responses:
         "200":
           description: List of news sources
@@ -226,6 +323,171 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/Source"
+
+  /api/chart/sentiment/trend:
+    get:
+      summary: Chart.js payload for sentiment trend
+      description: Returns Chart.js-compatible line chart data for sentiment trend.
+      parameters:
+        - name: keyword
+          in: query
+          required: true
+          schema:
+            type: string
+          example: inflation
+        - name: sourceId
+          in: query
+          required: false
+          schema:
+            type: string
+          example: guardian
+        - name: timeframe
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [24h, 7d, 30d]
+            default: 7d
+      responses:
+        "200":
+          description: Chart.js line chart payload
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChartPayload"
+
+  /api/chart/sources/compare:
+    get:
+      summary: Chart.js payload for source comparison
+      description: Returns Chart.js-compatible bar chart data across sources.
+      parameters:
+        - name: keyword
+          in: query
+          required: true
+          schema:
+            type: string
+          example: inflation
+        - name: sourceIds
+          in: query
+          required: false
+          schema:
+            type: string
+          example: guardian,nyt
+        - name: timeframe
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [24h, 7d, 30d]
+            default: 7d
+      responses:
+        "200":
+          description: Chart.js bar chart payload
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChartPayload"
+
+  /api/chart/mentions/monthly:
+    get:
+      summary: Chart.js payload for monthly keyword mentions by source
+      description: Returns a comparative bar chart showing how many article titles mention the keyword each month in a selected year, grouped by source.
+      parameters:
+        - name: keyword
+          in: query
+          required: true
+          schema:
+            type: string
+          example: Trump
+        - name: year
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 2000
+            maximum: 2100
+            default: 2026
+          example: 2025
+        - name: sourceLimit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 20
+            default: 6
+          example: 5
+      responses:
+        "200":
+          description: Chart.js grouped bar chart payload
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChartPayload"
+        "400":
+          description: Invalid or missing keyword/year parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/KeywordError"
+
+  /api/chart/mentions/monthly.png:
+    get:
+      summary: Rendered PNG chart for monthly keyword mentions by source
+      description: Returns a rendered grouped bar chart image showing monthly title mentions by source for a keyword and year.
+      parameters:
+        - name: keyword
+          in: query
+          required: true
+          schema:
+            type: string
+          example: Trump
+        - name: year
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 2000
+            maximum: 2100
+            default: 2026
+          example: 2025
+        - name: sourceLimit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 20
+            default: 6
+          example: 5
+        - name: width
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 1400
+          example: 1600
+        - name: height
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 800
+          example: 900
+      responses:
+        "200":
+          description: PNG image response
+          content:
+            image/png:
+              schema:
+                type: string
+                format: binary
+        "400":
+          description: Invalid or missing keyword/year parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/KeywordError"
 
 components:
   schemas:
@@ -276,6 +538,15 @@ components:
       properties:
         keyword:
           type: string
+        sourceId:
+          type: string
+          nullable: true
+        sourceName:
+          type: string
+          nullable: true
+        timeframe:
+          type: string
+          enum: [24h, 7d, 30d]
         articleCount:
           type: integer
         averageSentiment:
@@ -291,6 +562,47 @@ components:
               type: integer
             negative:
               type: integer
+
+    SentimentComparisonItem:
+      type: object
+      properties:
+        keyword:
+          type: string
+        sourceId:
+          type: string
+        sourceName:
+          type: string
+        timeframe:
+          type: string
+          enum: [24h, 7d, 30d]
+        articleCount:
+          type: integer
+        averageSentiment:
+          type: number
+        distribution:
+          type: object
+          properties:
+            positive:
+              type: integer
+            neutral:
+              type: integer
+            negative:
+              type: integer
+
+    SentimentComparisonResponse:
+      type: object
+      properties:
+        keyword:
+          type: string
+        timeframe:
+          type: string
+          enum: [24h, 7d, 30d]
+        sourcesCompared:
+          type: integer
+        comparisons:
+          type: array
+          items:
+            $ref: "#/components/schemas/SentimentComparisonItem"
 
     ArticleSentimentResult:
       type: object
@@ -319,6 +631,9 @@ components:
         keyword:
           type: string
           example: inflation
+        sourceId:
+          type: string
+          nullable: true
         timeframe:
           type: string
           enum: [24h, 7d, 30d]
@@ -356,6 +671,79 @@ components:
           type: integer
           description: Total number of articles indexed from this source
           example: 1042
+        latestPublishedAt:
+          type: string
+          format: date-time
+
+    TrendingKeyword:
+      type: object
+      properties:
+        keyword:
+          type: string
+        count:
+          type: integer
+
+    TrendingResponse:
+      type: object
+      properties:
+        timeframe:
+          type: string
+          enum: [24h, 7d, 30d]
+        keywords:
+          type: array
+          items:
+            $ref: "#/components/schemas/TrendingKeyword"
+
+    ChartDataset:
+      type: object
+      properties:
+        label:
+          type: string
+        data:
+          type: array
+          items:
+            type: number
+        borderColor:
+          type: string
+        backgroundColor:
+          type: string
+        yAxisID:
+          type: string
+
+    ChartPayload:
+      type: object
+      properties:
+        chartType:
+          type: string
+          enum: [line, bar]
+        labels:
+          type: array
+          items:
+            type: string
+        datasets:
+          type: array
+          items:
+            $ref: "#/components/schemas/ChartDataset"
+        meta:
+          type: object
+
+    ArticlesResponse:
+      type: object
+      properties:
+        keyword:
+          type: string
+        totalMatches:
+          type: integer
+        rankings:
+          type: array
+          items:
+            type: object
+        articles:
+          type: array
+          items:
+            type: object
+        self:
+          type: string
 
     ArticleNotFoundError:
       type: object

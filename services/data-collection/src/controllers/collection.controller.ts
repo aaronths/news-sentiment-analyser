@@ -1,5 +1,5 @@
 import { Request, Response } from "express";
-import { NEWS_SOURCES, isPlaceholderSecret } from "../config/news-sources";
+import { NEWS_SOURCES, isSourceConfigured } from "../config/news-sources";
 import { appendRawArticles, readRawArticles } from "../services/data-store.service";
 import { collectArticlesFromSources } from "../services/source-clients";
 
@@ -8,9 +8,11 @@ export const listSources = async (req: Request, res: Response) => {
     sources: NEWS_SOURCES.map((source) => ({
       id: source.id,
       name: source.name,
+      provider: source.provider,
       apiKeyEnvVar: source.apiKeyEnvVar,
       apiUrlEnvVar: source.apiUrlEnvVar,
-      configured: !isPlaceholderSecret(source.apiKey),
+      rssUrlEnvVar: source.rssUrlEnvVar,
+      configured: isSourceConfigured(source),
     })),
   });
 };
