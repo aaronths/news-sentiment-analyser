@@ -104,6 +104,12 @@ Run ingestion:
 
 - `cd services/data-collection && npm run ingest`
 
+You can also run continuously (polling every N milliseconds) by setting:
+
+- `INGEST_INTERVAL_MS` (e.g. `60000` to re-run every minute)
+- `INGEST_MAX_ITERATIONS` (optional, stops after N runs)
+- `INGEST_PAGES` (optional, fetches additional pages where supported — useful for backfilling older stories)
+
 Result:
 
 - local files are refreshed
