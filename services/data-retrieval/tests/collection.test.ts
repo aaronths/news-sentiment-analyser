@@ -6,6 +6,10 @@ import { app, server } from "../src/main";
 
 // ensure the HTTP server is closed after tests
 afterAll((done) => {
+  if (!server) {
+    done();
+    return;
+  }
   server.close(done);
 });
 
@@ -101,6 +105,63 @@ describe("Swagger endpoints", () => {
     expect(res.status).toBe(200);
     expect(res.body.keyword).toBe("inflation");
     expect(res.body.articleCount).toBeGreaterThanOrEqual(0);
+  });
+
+  it("GET /api/sources returns indexed source list", async () => {
+    const res = await request(app).get("/api/sources").query({ limit: 5 });
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body)).toBe(true);
+  });
+
+  it("GET /api/trending returns keyword frequencies", async () => {
+    const res = await request(app).get("/api/trending").query({ timeframe: "30d", limit: 5 });
+    expect(res.status).toBe(200);
+    expect(res.body.timeframe).toBe("30d");
+    expect(Array.isArray(res.body.keywords)).toBe(true);
+  });
+
+  it("GET /api/sentiment/source requires sourceId", async () => {
+    const res = await request(app)
+      .get("/api/sentiment/source")
+      .query({ keyword: "economy" });
+    expect(res.status).toBe(400);
+  });
+
+  it("GET /api/sentiment/source returns source summary", async () => {
+    const res = await request(app)
+      .get("/api/sentiment/source")
+      .query({ keyword: "economy", sourceId: "test", timeframe: "30d" });
+    expect(res.status).toBe(200);
+    expect(res.body.sourceId).toBe("test");
+    expect(res.body.keyword).toBe("economy");
+  });
+
+  it("GET /api/sentiment/compare returns comparison payload", async () => {
+    const res = await request(app)
+      .get("/api/sentiment/compare")
+      .query({ keyword: "economy", timeframe: "30d" });
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body.comparisons)).toBe(true);
+  });
+
+  it("GET /api/chart/sentiment/trend returns chart-ready payload", async () => {
+    const res = await request(app)
+      .get("/api/chart/sentiment/trend")
+      .query({ keyword: "economy", timeframe: "30d" });
+    expect(res.status).toBe(200);
+    expect(res.body.chartType).toBe("line");
+    expect(Array.isArray(res.body.labels)).toBe(true);
+    expect(Array.isArray(res.body.datasets)).toBe(true);
+  });
+
+  it("GET /api/chart/sources/compare returns chart-ready payload", async () => {
+    const res = await request(app)
+      .get("/api/chart/sources/compare")
+      .query({ keyword: "economy", timeframe: "30d" });
+    expect(res.status).toBe(200);
+    expect(res.body.chartType).toBe("bar");
+    expect(Array.isArray(res.body.labels)).toBe(true);
+    expect(Array.isArray(res.body.datasets)).toBe(true);
   });
 
   it("GET /api/articles/:id/sentiment returns sentiment data", async () => {

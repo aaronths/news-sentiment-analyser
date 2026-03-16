@@ -1,9 +1,16 @@
 import { Request, Response } from "express";
 import {
+  aggregateSources,
   searchArticles,
   computeSentimentForArticles,
+  filterArticlesByDateRange,
+  filterArticlesByTimeframe,
+  getTrendingKeywords,
+  loadCleanArticles,
   parseLimit,
+  parseTimeframe,
   labelForCompound,
+  Timeframe,
 } from "../services/articles.service";
 
 // health/test helper that's kept for backwards compatibility
@@ -20,8 +27,14 @@ export const getArticles = async (req: Request, res: Response) => {
 
   const sourceId = String(req.query.sourceId || "").trim() || undefined;
   const limit = parseLimit(String(req.query.limit || ""));
+  const startDate = String(req.query.startDate || "").trim() || undefined;
+  const endDate = String(req.query.endDate || "").trim() || undefined;
 
-  const matched = await searchArticles(keyword, sourceId);
+  const matched = filterArticlesByDateRange(
+    await searchArticles(keyword, sourceId),
+    startDate,
+    endDate,
+  );
 
   // compute sentiment rankings similar to the Python runtime
   const scored = await computeSentimentForArticles(matched);
@@ -97,7 +110,9 @@ export const getArticles = async (req: Request, res: Response) => {
     articles: topArticles,
     self: `?keyword=${encodeURIComponent(keyword)}&sourceId=${encodeURIComponent(
       sourceId || ""
-    )}&limit=${limit}`,
+    )}&limit=${limit}&startDate=${encodeURIComponent(
+      startDate || ""
+    )}&endDate=${encodeURIComponent(endDate || "")}`,
   });
 };
 
@@ -158,7 +173,16 @@ export const getSentiment = async (req: Request, res: Response) => {
   if (!keyword) {
     return res.status(400).json({ code: 400, message: "keyword required" });
   }
-  const matched = await searchArticles(keyword);
+  const sourceId = String(req.query.sourceId || "").trim() || undefined;
+  const timeframe = parseTimeframe(String(req.query.timeframe || "").trim(), "7d");
+  if (!timeframe) {
+    return res.status(400).json({ code: 400, message: "Invalid timeframe parameter" });
+  }
+
+  const matched = filterArticlesByTimeframe(
+    await searchArticles(keyword, sourceId),
+    timeframe,
+  );
   const scored = await computeSentimentForArticles(matched);
   const distribution = { positive: 0, neutral: 0, negative: 0 };
   scored.forEach((entry) => {
@@ -167,7 +191,14 @@ export const getSentiment = async (req: Request, res: Response) => {
   });
   const avg =
     scored.reduce((sum, e) => sum + e.scores.compound, 0) / (scored.length || 1);
-  res.json({ keyword, articleCount: matched.length, averageSentiment: avg, distribution });
+  res.json({
+    keyword,
+    sourceId,
+    timeframe,
+    articleCount: matched.length,
+    averageSentiment: Number(avg.toFixed(4)),
+    distribution,
+  });
 };
 
 export const getSentimentTrend = async (req: Request, res: Response) => {
@@ -175,32 +206,263 @@ export const getSentimentTrend = async (req: Request, res: Response) => {
   if (!keyword) {
     return res.status(400).json({ code: 400, message: "keyword required" });
   }
-  const timeframe = String(req.query.timeframe || "7d");
-  const allowed = ["24h", "7d", "30d"];
-  if (timeframe && !allowed.includes(timeframe)) {
-    return res.status(401).json({ code: 401, message: "Invalid timeframe parameter" });
+  const sourceId = String(req.query.sourceId || "").trim() || undefined;
+  const timeframe = parseTimeframe(String(req.query.timeframe || "").trim(), "7d");
+  if (!timeframe) {
+    return res.status(400).json({ code: 400, message: "Invalid timeframe parameter" });
   }
 
-  // rudimentary stub: always return empty dataPoints for now
-  res.json({ keyword, timeframe, dataPoints: [] });
+  const matched = filterArticlesByTimeframe(
+    await searchArticles(keyword, sourceId),
+    timeframe,
+  );
+  const scored = await computeSentimentForArticles(matched);
+
+  const byDate = new Map<string, { compoundTotal: number; articleCount: number }>();
+  for (const entry of scored) {
+    const dateKey = String(entry.article.publishedAt || "").slice(0, 10);
+    if (!dateKey) {
+      continue;
+    }
+    const bucket = byDate.get(dateKey) || { compoundTotal: 0, articleCount: 0 };
+    bucket.compoundTotal += entry.scores.compound;
+    bucket.articleCount += 1;
+    byDate.set(dateKey, bucket);
+  }
+
+  const dataPoints = Array.from(byDate.entries())
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([date, stats]) => ({
+      date,
+      averageSentiment: Number((stats.compoundTotal / stats.articleCount).toFixed(4)),
+      articleCount: stats.articleCount,
+    }));
+
+  res.json({ keyword, sourceId, timeframe, dataPoints });
 };
 
 export const getTrending = async (req: Request, res: Response) => {
-  const timeframe = String(req.query.timeframe || "24h");
-  const allowed = ["24h", "7d", "30d"];
-  if (timeframe && !allowed.includes(timeframe)) {
-    return res.status(401).json({ code: 401, message: "Invalid timeframe parameter" });
+  const timeframe = parseTimeframe(String(req.query.timeframe || "").trim(), "24h");
+  if (!timeframe) {
+    return res.status(400).json({ code: 400, message: "Invalid timeframe parameter" });
   }
-  res.json([]);
+  const limit = parseLimit(String(req.query.limit || "10"));
+
+  const recentArticles = filterArticlesByTimeframe(await loadCleanArticles(), timeframe);
+  const trending = getTrendingKeywords(recentArticles, limit);
+  res.json({ timeframe, keywords: trending });
 };
 
 export const getSources = async (req: Request, res: Response) => {
-  let limit = parseInt(String(req.query.limit || ""), 10);
-  if (isNaN(limit) || limit < 1) {
+  let limit = parseInt(String(req.query.limit || "50"), 10);
+  if (Number.isNaN(limit) || limit < 1) {
     limit = 50;
   }
+  limit = Math.min(limit, 100);
 
-  // no real source index yet
-  res.json([]);
+  const timeframe = parseTimeframe(String(req.query.timeframe || "").trim(), "30d");
+  if (!timeframe) {
+    return res.status(400).json({ code: 400, message: "Invalid timeframe parameter" });
+  }
+
+  const recentArticles = filterArticlesByTimeframe(await loadCleanArticles(), timeframe);
+  const sources = aggregateSources(recentArticles).slice(0, limit);
+
+  res.json(
+    sources.map((source) => ({
+      id: source.id,
+      name: source.name,
+      url: source.url,
+      articleCount: source.articleCount,
+      latestPublishedAt: source.latestPublishedAt,
+    })),
+  );
+};
+
+const computeSourceSummary = async (
+  keyword: string,
+  sourceId: string,
+  timeframe: Timeframe,
+) => {
+  const matched = filterArticlesByTimeframe(await searchArticles(keyword, sourceId), timeframe);
+  const scored = await computeSentimentForArticles(matched);
+  const avg =
+    scored.reduce((sum, entry) => sum + entry.scores.compound, 0) / (scored.length || 1);
+
+  const distribution = { positive: 0, neutral: 0, negative: 0 };
+  for (const entry of scored) {
+    const label = labelForCompound(entry.scores.compound);
+    distribution[label as keyof typeof distribution] += 1;
+  }
+
+  return {
+    keyword,
+    sourceId,
+    sourceName: scored[0]?.article.sourceName || sourceId,
+    timeframe,
+    articleCount: matched.length,
+    averageSentiment: Number(avg.toFixed(4)),
+    distribution,
+  };
+};
+
+export const getSentimentBySource = async (req: Request, res: Response) => {
+  const keyword = String(req.query.keyword || "").trim();
+  const sourceId = String(req.query.sourceId || "").trim();
+  if (!keyword) {
+    return res.status(400).json({ code: 400, message: "keyword required" });
+  }
+  if (!sourceId) {
+    return res.status(400).json({ code: 400, message: "sourceId required" });
+  }
+
+  const timeframe = parseTimeframe(String(req.query.timeframe || "").trim(), "7d");
+  if (!timeframe) {
+    return res.status(400).json({ code: 400, message: "Invalid timeframe parameter" });
+  }
+
+  const summary = await computeSourceSummary(keyword, sourceId, timeframe);
+  res.json(summary);
+};
+
+export const getSentimentComparison = async (req: Request, res: Response) => {
+  const keyword = String(req.query.keyword || "").trim();
+  if (!keyword) {
+    return res.status(400).json({ code: 400, message: "keyword required" });
+  }
+
+  const timeframe = parseTimeframe(String(req.query.timeframe || "").trim(), "7d");
+  if (!timeframe) {
+    return res.status(400).json({ code: 400, message: "Invalid timeframe parameter" });
+  }
+
+  const sourceIdsParam = String(req.query.sourceIds || "").trim();
+  const requestedSourceIds = sourceIdsParam
+    ? sourceIdsParam
+        .split(",")
+        .map((value) => value.trim())
+        .filter(Boolean)
+    : [];
+
+  const matched = filterArticlesByTimeframe(await searchArticles(keyword), timeframe);
+  const availableSourceIds = Array.from(new Set(matched.map((a) => String(a.sourceId))));
+  const sourceIds = requestedSourceIds.length ? requestedSourceIds : availableSourceIds;
+
+  const comparisons = [];
+  for (const sourceId of sourceIds) {
+    comparisons.push(await computeSourceSummary(keyword, sourceId, timeframe));
+  }
+
+  res.json({
+    keyword,
+    timeframe,
+    sourcesCompared: comparisons.length,
+    comparisons: comparisons.sort((a, b) => b.averageSentiment - a.averageSentiment),
+  });
+};
+
+export const getSentimentTrendChart = async (req: Request, res: Response) => {
+  const keyword = String(req.query.keyword || "").trim();
+  if (!keyword) {
+    return res.status(400).json({ code: 400, message: "keyword required" });
+  }
+
+  const timeframe = parseTimeframe(String(req.query.timeframe || "").trim(), "7d");
+  if (!timeframe) {
+    return res.status(400).json({ code: 400, message: "Invalid timeframe parameter" });
+  }
+
+  const sourceId = String(req.query.sourceId || "").trim() || undefined;
+  const matched = filterArticlesByTimeframe(
+    await searchArticles(keyword, sourceId),
+    timeframe,
+  );
+  const scored = await computeSentimentForArticles(matched);
+
+  const byDate = new Map<string, { compoundTotal: number; articleCount: number }>();
+  for (const entry of scored) {
+    const dateKey = String(entry.article.publishedAt || "").slice(0, 10);
+    if (!dateKey) continue;
+    const bucket = byDate.get(dateKey) || { compoundTotal: 0, articleCount: 0 };
+    bucket.compoundTotal += entry.scores.compound;
+    bucket.articleCount += 1;
+    byDate.set(dateKey, bucket);
+  }
+
+  const sorted = Array.from(byDate.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+  const labels = sorted.map(([date]) => date);
+  const sentimentData = sorted.map(([, stats]) =>
+    Number((stats.compoundTotal / stats.articleCount).toFixed(4)),
+  );
+  const articleCountData = sorted.map(([, stats]) => stats.articleCount);
+
+  res.json({
+    chartType: "line",
+    labels,
+    datasets: [
+      {
+        label: "Average Sentiment",
+        data: sentimentData,
+        borderColor: "#1f77b4",
+        yAxisID: "y",
+      },
+      {
+        label: "Article Count",
+        data: articleCountData,
+        borderColor: "#ff7f0e",
+        yAxisID: "y1",
+      },
+    ],
+    meta: { keyword, sourceId, timeframe },
+  });
+};
+
+export const getSourceComparisonChart = async (req: Request, res: Response) => {
+  const keyword = String(req.query.keyword || "").trim();
+  if (!keyword) {
+    return res.status(400).json({ code: 400, message: "keyword required" });
+  }
+
+  const timeframe = parseTimeframe(String(req.query.timeframe || "").trim(), "7d");
+  if (!timeframe) {
+    return res.status(400).json({ code: 400, message: "Invalid timeframe parameter" });
+  }
+
+  const sourceIdsParam = String(req.query.sourceIds || "").trim();
+  const requestedSourceIds = sourceIdsParam
+    ? sourceIdsParam
+        .split(",")
+        .map((value) => value.trim())
+        .filter(Boolean)
+    : [];
+
+  const matched = filterArticlesByTimeframe(await searchArticles(keyword), timeframe);
+  const availableSourceIds = Array.from(new Set(matched.map((a) => String(a.sourceId))));
+  const sourceIds = requestedSourceIds.length ? requestedSourceIds : availableSourceIds;
+
+  const comparisons = [];
+  for (const sourceId of sourceIds) {
+    comparisons.push(await computeSourceSummary(keyword, sourceId, timeframe));
+  }
+
+  const sorted = comparisons.sort((a, b) => b.averageSentiment - a.averageSentiment);
+
+  res.json({
+    chartType: "bar",
+    labels: sorted.map((item) => item.sourceName),
+    datasets: [
+      {
+        label: "Average Sentiment",
+        data: sorted.map((item) => item.averageSentiment),
+        backgroundColor: "#2ca02c",
+      },
+      {
+        label: "Article Count",
+        data: sorted.map((item) => item.articleCount),
+        backgroundColor: "#9467bd",
+      },
+    ],
+    meta: { keyword, timeframe },
+  });
 };
 
