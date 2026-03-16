@@ -10,6 +10,12 @@ import {
   getTrending,
   getSources,
 } from "../controllers/retrieval.controller";
+import {
+  getDistributionChartData,
+  getDistributionChartImage,
+  getRankingsChartData,
+  getRankingsChartImage,
+} from "../controllers/charts.controller";
 
 export const retrievalRouter = Router();
 
@@ -19,6 +25,10 @@ retrievalRouter.get("/test", performTest);
 // swagger-defined routes
 retrievalRouter.get("/articles", getArticles);
 retrievalRouter.get("/articles/metadata", getArticleMetadata);
+retrievalRouter.get("/charts/rankings", getRankingsChartData);
+retrievalRouter.get("/charts/rankings.png", getRankingsChartImage);
+retrievalRouter.get("/charts/distribution", getDistributionChartData);
+retrievalRouter.get("/charts/distribution.png", getDistributionChartImage);
 // sentiment endpoint must come **before** the generic id route, otherwise the
 // latter swallows requests by greedily matching the trailing "/sentiment".
 retrievalRouter.get("/articles/:id(*)/sentiment", getArticleSentiment);

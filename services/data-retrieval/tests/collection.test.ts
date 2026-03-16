@@ -28,6 +28,19 @@ beforeAll(() => {
       url: "http://example.com/test",
       keywordTokens: ["economy", "test"],
       sentimentText: "This is a test article about economy and other things."
+    },
+    {
+      id: "precomputed_sentiment_article",
+      sourceId: "precomputed",
+      sourceName: "Precomputed Source",
+      title: "Customscore market update",
+      body: "Fantastic outcomes and optimistic language.",
+      summary: "Precomputed sentiment record",
+      publishedAt: new Date().toISOString(),
+      url: "http://example.com/precomputed",
+      keywordTokens: ["customscore", "market"],
+      sentimentText: "Fantastic outcomes and optimistic language.",
+      sentiment: -0.8
     }
   ];
   fs.mkdirSync(path.dirname(dataPath), { recursive: true });
@@ -101,6 +114,37 @@ describe("Swagger endpoints", () => {
     expect(res.status).toBe(200);
     expect(res.body.keyword).toBe("inflation");
     expect(res.body.articleCount).toBeGreaterThanOrEqual(0);
+  });
+
+  it("GET /api/sentiment uses precomputed score when provided", async () => {
+    const res = await request(app)
+      .get("/api/sentiment")
+      .query({ keyword: "customscore" });
+
+    expect(res.status).toBe(200);
+    expect(res.body.keyword).toBe("customscore");
+    expect(res.body.articleCount).toBe(1);
+    expect(res.body.averageSentiment).toBeLessThan(-0.5);
+  });
+
+  it("GET /api/charts/rankings with keyword returns Chart.js config", async () => {
+    const res = await request(app)
+      .get("/api/charts/rankings")
+      .query({ keyword: "economy" });
+
+    expect(res.status).toBe(200);
+    expect(res.body.type).toBe("bar");
+    expect(Array.isArray(res.body?.data?.datasets)).toBe(true);
+  });
+
+  it("GET /api/charts/rankings.png with keyword returns image", async () => {
+    const res = await request(app)
+      .get("/api/charts/rankings.png")
+      .query({ keyword: "economy" });
+
+    expect(res.status).toBe(200);
+    expect(res.headers["content-type"]).toContain("image/png");
+    expect(res.body).toBeDefined();
   });
 
   it("GET /api/articles/:id/sentiment returns sentiment data", async () => {
