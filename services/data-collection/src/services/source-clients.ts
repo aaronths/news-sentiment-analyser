@@ -1,6 +1,7 @@
 import https from "https";
 import { URL } from "url";
-import { NEWS_SOURCES, isPlaceholderSecret } from "../config/news-sources";
+import { XMLParser } from "fast-xml-parser";
+import { NEWS_SOURCES, isPlaceholderSecret, isSourceConfigured } from "../config/news-sources";
 import {
   NewsSourceConfig,
   RawArticle,
@@ -67,6 +68,37 @@ interface NytTopStoriesResponse {
     short_url?: string;
     uri?: string;
   }>;
+}
+
+interface NytMostPopularResponse {
+  results?: Array<{
+    title?: string;
+    abstract?: string;
+    published_date?: string;
+    url?: string;
+    byline?: string;
+    section?: string;
+    subsection?: string;
+    uri?: string;
+  }>;
+}
+
+interface RssChannelItem {
+  guid?: string | { "#text"?: string };
+  title?: string;
+  description?: string;
+  "content:encoded"?: string;
+  pubDate?: string;
+  link?: string;
+}
+
+interface AtomEntry {
+  id?: string;
+  title?: string | { "#text"?: string };
+  summary?: string | { "#text"?: string };
+  updated?: string;
+  published?: string;
+  link?: { href?: string } | Array<{ href?: string }>;
 }
 
 const MAX_DEFAULT_PER_SOURCE = 5;
@@ -184,6 +216,51 @@ const sampleArticlesBySource: Record<string, RawArticle[]> = {
       section: "Climate",
     },
   ],
+  "nyt-most-popular": [
+    {
+      id: "nyt-most-popular-sample-1",
+      sourceId: "nyt-most-popular",
+      sourceName: "New York Times - Most Popular",
+      headline: "Most-read: Economic outlook remains mixed across major cities",
+      content:
+        "A sample most-popular article capturing broad reader interest in inflation, wages, and housing costs.",
+      publishedAt: "2026-03-05T12:00:00.000Z",
+      collectedAt: new Date().toISOString(),
+      url: "https://www.nytimes.com/sample/most-popular-economy",
+      author: "The New York Times",
+      section: "Business",
+    },
+  ],
+  bbc: [
+    {
+      id: "bbc-sample-world-1",
+      sourceId: "bbc",
+      sourceName: "BBC News",
+      headline: "Global policy shifts keep markets on edge",
+      content:
+        "Sample BBC-style world desk reporting on macroeconomic policy updates and investor response.",
+      publishedAt: "2026-03-06T08:30:00.000Z",
+      collectedAt: new Date().toISOString(),
+      url: "https://www.bbc.com/news/sample/world-markets",
+      author: "BBC World Service",
+      section: "World",
+    },
+  ],
+  reuters: [
+    {
+      id: "reuters-sample-global-1",
+      sourceId: "reuters",
+      sourceName: "Reuters",
+      headline: "Global growth expectations revised amid policy uncertainty",
+      content:
+        "Sample Reuters-style dispatch tracking global growth, commodities, and central bank guidance.",
+      publishedAt: "2026-03-06T03:15:00.000Z",
+      collectedAt: new Date().toISOString(),
+      url: "https://www.reuters.com/world/sample/global-growth",
+      author: "Reuters",
+      section: "World",
+    },
+  ],
 };
 
 const clampPerSource = (perSource: number | undefined) => {
@@ -224,6 +301,45 @@ const fetchJson = <T>(url: URL, headers: Record<string, string> = {}): Promise<T
   });
 };
 
+const fetchText = (url: URL, headers: Record<string, string> = {}): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const request = https.get(url, { headers }, (response) => {
+      const chunks: Buffer[] = [];
+
+      response.on("data", (chunk: Buffer) => {
+        chunks.push(chunk);
+      });
+
+      response.on("end", () => {
+        const body = Buffer.concat(chunks).toString("utf-8");
+        const statusCode = response.statusCode ?? 500;
+
+        if (statusCode >= 400) {
+          reject(new Error(`Request failed with status ${statusCode}: ${body}`));
+          return;
+        }
+
+        resolve(body);
+      });
+    });
+
+    request.on("error", reject);
+  });
+};
+
+const parser = new XMLParser({
+  ignoreAttributes: false,
+  attributeNamePrefix: "",
+  trimValues: true,
+});
+
+const stripTags = (value: string) => value.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+
+const asArray = <T>(value: T | T[] | undefined): T[] => {
+  if (!value) return [];
+  return Array.isArray(value) ? value : [value];
+};
+
 const buildSampleArticles = (
   config: NewsSourceConfig,
   keyword: string | undefined,
@@ -255,7 +371,7 @@ const buildGuardianUrl = (
   page?: number,
 ) => {
   const url = new URL("/search", config.baseUrl);
-  url.searchParams.set("api-key", config.apiKey);
+  url.searchParams.set("api-key", config.apiKey ?? "");
   url.searchParams.set("page-size", String(perSource));
   url.searchParams.set("show-fields", "headline,trailText,bodyText,byline");
   url.searchParams.set("order-by", "newest");
@@ -313,9 +429,14 @@ const collectGenericArticles = async (
     url.searchParams.set("q", keyword.trim());
   }
 
+  const headers: Record<string, string> = {};
+  if (config.apiKey) {
+    headers.Authorization = `Bearer ${config.apiKey}`;
+    headers["x-api-key"] = config.apiKey;
+  }
+
   const response = await fetchJson<GenericNewsApiResponse>(url, {
-    Authorization: `Bearer ${config.apiKey}`,
-    "x-api-key": config.apiKey,
+    ...headers,
   });
 
   const items = response.articles ?? response.results ?? [];
@@ -338,7 +459,7 @@ const collectNytTopStories = async (
   perSource: number,
 ): Promise<RawArticle[]> => {
   const url = new URL(config.apiUrl ?? "/svc/topstories/v2/home.json", config.baseUrl);
-  url.searchParams.set("api-key", config.apiKey);
+  url.searchParams.set("api-key", config.apiKey ?? "");
 
   const response = await fetchJson<NytTopStoriesResponse>(url);
   return (response.results ?? []).slice(0, perSource).map((article, index) => ({
@@ -355,6 +476,103 @@ const collectNytTopStories = async (
   }));
 };
 
+const collectNytMostPopular = async (
+  config: NewsSourceConfig,
+  perSource: number,
+): Promise<RawArticle[]> => {
+  const url = new URL(config.apiUrl ?? "/svc/mostpopular/v2/viewed/1.json", config.baseUrl);
+  if (config.apiKey) {
+    url.searchParams.set("api-key", config.apiKey);
+  }
+
+  const response = await fetchJson<NytMostPopularResponse>(url);
+  return (response.results ?? []).slice(0, perSource).map((article, index) => ({
+    id: article.uri ?? `${config.id}-${Date.now()}-${index}`,
+    sourceId: config.id,
+    sourceName: config.name,
+    headline: article.title ?? "Untitled article",
+    content: article.abstract ?? "Content unavailable",
+    publishedAt: article.published_date ?? new Date().toISOString(),
+    collectedAt: new Date().toISOString(),
+    url: article.url ?? `${config.baseUrl}/article/${index}`,
+    author: article.byline,
+    section: [article.section, article.subsection].filter(Boolean).join(" / ") || undefined,
+  }));
+};
+
+const collectRssFeed = async (
+  config: NewsSourceConfig,
+  keyword: string | undefined,
+  perSource: number,
+): Promise<RawArticle[]> => {
+  const rssUrl = config.rssUrl;
+  if (!rssUrl) {
+    return [];
+  }
+
+  const xml = await fetchText(new URL(rssUrl));
+  const parsed = parser.parse(xml) as {
+    rss?: { channel?: { item?: RssChannelItem | RssChannelItem[] } };
+    feed?: { entry?: AtomEntry | AtomEntry[] };
+  };
+
+  const normalizedKeyword = keyword?.trim().toLowerCase();
+
+  const rssItems = asArray(parsed.rss?.channel?.item).map((item, index) => {
+    const headline = item.title || "Untitled article";
+    const content = stripTags(item["content:encoded"] || item.description || "Content unavailable");
+    const guidValue =
+      typeof item.guid === "string"
+        ? item.guid
+        : item.guid && typeof item.guid === "object"
+          ? item.guid["#text"] || ""
+          : "";
+    const articleUrl = item.link || `${config.baseUrl}/article/${index}`;
+
+    return {
+      id: guidValue || articleUrl || `${config.id}-${Date.now()}-${index}`,
+      sourceId: config.id,
+      sourceName: config.name,
+      headline,
+      content,
+      publishedAt: item.pubDate ? new Date(item.pubDate).toISOString() : new Date().toISOString(),
+      collectedAt: new Date().toISOString(),
+      url: articleUrl,
+    } as RawArticle;
+  });
+
+  const atomItems = asArray(parsed.feed?.entry).map((entry, index) => {
+    const headline = typeof entry.title === "string" ? entry.title : entry.title?.["#text"] || "Untitled article";
+    const content = stripTags(
+      typeof entry.summary === "string"
+        ? entry.summary
+        : entry.summary?.["#text"] || "Content unavailable",
+    );
+    const links = asArray(entry.link);
+    const articleUrl = links[0]?.href || `${config.baseUrl}/article/${index}`;
+
+    return {
+      id: entry.id || articleUrl || `${config.id}-${Date.now()}-${index}`,
+      sourceId: config.id,
+      sourceName: config.name,
+      headline,
+      content,
+      publishedAt: new Date(entry.updated || entry.published || Date.now()).toISOString(),
+      collectedAt: new Date().toISOString(),
+      url: articleUrl,
+    } as RawArticle;
+  });
+
+  const combined = [...rssItems, ...atomItems];
+  const filtered = normalizedKeyword
+    ? combined.filter((article) =>
+        `${article.headline} ${article.content}`.toLowerCase().includes(normalizedKeyword),
+      )
+    : combined;
+
+  return filtered.slice(0, perSource);
+};
+
 const collectLiveArticles = async (
   config: NewsSourceConfig,
   keyword: string | undefined,
@@ -368,6 +586,10 @@ const collectLiveArticles = async (
       return collectGenericArticles(config, keyword, perSource);
     case "nyt-top-stories":
       return collectNytTopStories(config, perSource);
+    case "nyt-most-popular":
+      return collectNytMostPopular(config, perSource);
+    case "rss-feed":
+      return collectRssFeed(config, keyword, perSource);
     default:
       return [];
   }
@@ -379,13 +601,16 @@ const collectFromSource = async (
   perSource: number,
   pages: number = 1,
 ): Promise<{ articles: RawArticle[]; summary: SourceCollectionResult }> => {
-  const hasConfiguredKey = !isPlaceholderSecret(config.apiKey);
-  const hasConfiguredUrl = !config.apiUrl || !isPlaceholderSecret(config.apiUrl);
+  const hasConfiguredKey = config.apiKey ? !isPlaceholderSecret(config.apiKey) : true;
+  const hasConfiguredUrl =
+    config.provider === "rss-feed"
+      ? !isPlaceholderSecret(config.rssUrl)
+      : !config.apiUrl || !isPlaceholderSecret(config.apiUrl);
 
   try {
     let articles: RawArticle[] = [];
 
-    if (hasConfiguredKey && hasConfiguredUrl) {
+    if (isSourceConfigured(config) && hasConfiguredKey && hasConfiguredUrl) {
       if (pages > 1 && config.provider === "guardian-search") {
         const collectedPages: number[] = [];
         for (let page = 1; page <= pages; page += 1) {
@@ -451,7 +676,7 @@ const collectFromSource = async (
       sourceName: config.name,
       articlesCollected: sampleArticles.length,
       mode: "sample",
-      note: "API key or endpoint placeholder detected.",
+      note: "Source configuration placeholder detected.",
     },
   };
 };

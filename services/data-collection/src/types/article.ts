@@ -28,12 +28,14 @@ export interface CleanArticle {
 export interface NewsSourceConfig {
   id: string;
   name: string;
-  provider: "guardian-search" | "generic-query" | "nyt-top-stories";
-  apiKeyEnvVar: string;
-  apiKey: string;
+  provider: "guardian-search" | "generic-query" | "nyt-top-stories" | "nyt-most-popular" | "rss-feed";
+  apiKeyEnvVar?: string;
+  apiKey?: string;
   baseUrl: string;
   apiUrlEnvVar?: string;
   apiUrl?: string;
+  rssUrlEnvVar?: string;
+  rssUrl?: string;
 }
 
 export interface SourceCollectionResult {
