@@ -235,7 +235,10 @@ function getTrendingKeywords(articles: any[], limit: number) {
     }
   }
 
-  const threshold = Math.max(1, Math.floor(articles.length * 0.5));
+  // Exclude terms that appear in more than this fraction of articles.
+  // Lower threshold means we treat more words as "too common" (e.g., {}
+  // or "people") and thus exclude them from trending keywords.
+  const threshold = Math.max(1, Math.floor(articles.length * 0.25));
 
   return Array.from(counts.entries())
     .filter(([keyword]) => (docFrequency.get(keyword) ?? 0) <= threshold)
