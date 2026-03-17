@@ -107,16 +107,29 @@ Run ingestion:
 
 - `cd services/data-collection && npm run ingest`
 
-You can also run continuously (polling every N milliseconds) by setting:
+You can override ingestion behavior using CLI flags (recommended) or env vars as a fallback. Examples:
+
+- Run with a custom per-source article limit:
+  - `npm run ingest -- --perSource=150`
+
+- Run only a subset of sources:
+  - `npm run ingest -- --sourceIds=bbc,abc` (comma-separated IDs)
+
+- Fetch more pages (where supported):
+  - `npm run ingest -- --pages=3`
+
+- **Backfill mode** (larger defaults to try to fetch deeper history where pagination is available):
+  - `npm run ingest -- --backfill`
+
+You can still run continuously by setting:
 
 - `INGEST_INTERVAL_MS` (e.g. `60000` to re-run every minute)
 - `INGEST_MAX_ITERATIONS` (optional, stops after N runs)
-- `INGEST_PAGES` (optional, fetches additional pages where supported — useful for backfilling older stories)
 
 Result:
 
 - local files are refreshed
-- mock storage writes to the local files by default
+- mock storage writes to local files by default
 - S3 upload runs only if storage mode is switched to `s3`
 
 ## Runtime Lambda flow
