@@ -36,6 +36,11 @@ export interface NewsSourceConfig {
   apiUrl?: string;
   rssUrlEnvVar?: string;
   rssUrl?: string;
+  /**
+   * Optional alternate RSS URLs to try if the primary RSS URL fails.
+   * Useful for sources whose primary RSS endpoint is intermittent.
+   */
+  rssUrlFallbacks?: string[];
 }
 
 export interface SourceCollectionResult {

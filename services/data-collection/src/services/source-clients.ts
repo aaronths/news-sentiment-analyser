@@ -513,12 +513,33 @@ const collectRssFeed = async (
   keyword: string | undefined,
   perSource: number,
 ): Promise<RawArticle[]> => {
-  const rssUrl = config.rssUrl;
-  if (!rssUrl) {
+  const urls = [config.rssUrl, ...(config.rssUrlFallbacks ?? [])].filter(
+    Boolean,
+  ) as string[];
+
+  if (urls.length === 0) {
     return [];
   }
 
-  const xml = await fetchText(new URL(rssUrl));
+  let xml: string | null = null;
+  let lastError: unknown;
+  for (const urlString of urls) {
+    try {
+      xml = await fetchText(new URL(urlString));
+      break;
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  if (!xml) {
+    throw new Error(
+      `Failed to fetch RSS feed for ${config.id} (tried ${urls.join(", ")}): ${
+        lastError instanceof Error ? lastError.message : String(lastError)
+      }`,
+    );
+  }
+
   const parsed = parser.parse(xml) as {
     rss?: { channel?: { item?: RssChannelItem | RssChannelItem[] } };
     feed?: { entry?: AtomEntry | AtomEntry[] };

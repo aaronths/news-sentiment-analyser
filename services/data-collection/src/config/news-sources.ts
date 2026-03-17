@@ -48,6 +48,11 @@ export const NEWS_SOURCES: NewsSourceConfig[] = [
     baseUrl: "https://www.reuters.com",
     rssUrlEnvVar: "REUTERS_RSS_URL",
     rssUrl: process.env.REUTERS_RSS_URL ?? "https://feeds.reuters.com/reuters/topNews",
+    rssUrlFallbacks: [
+      "https://www.reuters.com/rssFeed/topNews",
+      "https://www.reuters.com/rssFeed/worldNews",
+      "https://www.reuters.com/rssFeed/businessNews",
+    ],
   },
   {
     id: "abc",
