@@ -6,6 +6,8 @@ loadEnvironment();
 
 import { runIngestionPipeline } from "../services/ingestion-pipeline.service";
 import {
+  BACKFILL_INGEST_PAGES,
+  BACKFILL_INGEST_PER_SOURCE,
   DEFAULT_INGEST_PER_SOURCE,
   DEFAULT_INGEST_PAGES,
   DEFAULT_INGEST_SOURCE_IDS,
@@ -41,10 +43,12 @@ const getCliArg = (name: string): string | undefined => {
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const main = async () => {
+  const backfill = Boolean(getCliArg("backfill"));
+
   const perSource =
     parseNumber(getCliArg("perSource")) ??
     parseNumber(process.env.INGEST_PER_SOURCE) ??
-    DEFAULT_INGEST_PER_SOURCE;
+    (backfill ? BACKFILL_INGEST_PER_SOURCE : DEFAULT_INGEST_PER_SOURCE);
 
   const sourceIds =
     parseSourceIds(getCliArg("sourceIds")) ??
@@ -52,9 +56,9 @@ const main = async () => {
     DEFAULT_INGEST_SOURCE_IDS;
 
   const pages =
-    parseNumber(getCliArg("pages"), DEFAULT_INGEST_PAGES) ??
-    parseNumber(process.env.INGEST_PAGES, DEFAULT_INGEST_PAGES) ??
-    DEFAULT_INGEST_PAGES;
+    parseNumber(getCliArg("pages"), backfill ? BACKFILL_INGEST_PAGES : DEFAULT_INGEST_PAGES) ??
+    parseNumber(process.env.INGEST_PAGES, backfill ? BACKFILL_INGEST_PAGES : DEFAULT_INGEST_PAGES) ??
+    (backfill ? BACKFILL_INGEST_PAGES : DEFAULT_INGEST_PAGES);
 
   const intervalMs =
     parseNumber(getCliArg("intervalMs")) ??
