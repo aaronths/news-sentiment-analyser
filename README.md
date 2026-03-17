@@ -163,6 +163,56 @@ Provide the deployed runtime API URL, enter a keyword, and submit.
 ## Swagger
 Access swagger locally after running data-retrieval on `/docs`
 
+# Docker Setup
+
+## Prerequisites
+ - Docker
+ - Valid API keys for The Guardian and The New York Times (available on request)
+
+## Setup & Install
+Clone the repo:
+- `git clone git@github.com:aaronths/news-sentiment-analyser.git`
+- `cd news-sentiment-analyser`
+
+Configure environment variables:
+Create a `.env` file in the root directory and have it include:
+```
+# API Keys
+GUARDIAN_API_KEY=your-guardian-api-key
+NYT_NEWS_API_KEY=your-nyt-news-api-key
+
+# Local ingest controls
+INGEST_PER_SOURCE=50
+INGEST_SOURCE_IDS=guardian,nyt
+# Set an interval to keep ingest running (milliseconds). Leave undefined to run once.
+INGEST_INTERVAL_MS=60000
+
+# Service Configuration
+NEWS_DATA_STORAGE_MODE=local-file
+DATA_COLLECTION_PORT=8000
+DATA_RETRIEVAL_PORT=8001
+```
+Using these default `.env` parameters, the data collection service will run every minute.
+
+To build the images and start the service, run in the root directory:
+`docker-compose up --build` this runs the collection and retrieval concurrently.
+
+**Architecture Note:** the services use a Shared Docker Volume. Best practice is to let the collection service run for a few minutes to populate the volume, then you can stop it and run retrieval independently. Data will persist in the volume until manually cleared. Although, running them together will still work.
+
+To run Collection separately: `docker-compose up collection`
+
+To run Retrieval separately: `docker-compose up retrieval`
+
+To stop services: `docker-compose down` or `Ctrl + C`
+
+To clear all data/volumes: `docker-compose down -v`
+
+## Recommended initial testing
+| Service |  Endpoint  | Description |
+|:-----|:--------:|------:|
+| Retrieval API   | [http://localhost:8001/api/articles](http://localhost:8001/api/articles) | Query the collected articles (e.g. `?keyword=trump`) |
+| Swagger UI |  [http://localhost:8001/docs](http://localhost:8001/docs) | API documentation |
+
 ## Notes
 
 - [services/data-retrieval](services/data-retrieval) is a legacy MVP artifact from the earlier split-service version.
