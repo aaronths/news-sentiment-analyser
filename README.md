@@ -12,7 +12,9 @@ Reshuffled MVP for two modes:
 Location: [services/data-collection](services/data-collection)
 
 - collects general news articles from configured outlets
-- currently need to add the API keys, potentially will be work done on alternative scraping-based collection methods in the future
+- supports provider adapters for first-party APIs and RSS feeds
+- current first-party API adapters: The Guardian Search API, New York Times Top Stories API, New York Times Most Popular API
+- current RSS adapters include BBC, Reuters, ABC (AU), and SBS
 - preprocesses the raw payload into one clean schema
 - writes local snapshots to [data/raw-articles.json](data/raw-articles.json) and [data/clean-articles.json](data/clean-articles.json)
 - uses local mock file storage until s3 is setup
@@ -82,12 +84,13 @@ Copy [.env.example](.env.example) to `.env` and replace placeholders.
 Important values:
 
 - `GUARDIAN_API_KEY`
-- `ABC_NEWS_API_KEY`
-- `ABC_NEWS_API_URL`
-- `SBS_NEWS_API_KEY`
-- `SBS_NEWS_API_URL`
 - `NYT_NEWS_API_KEY`
 - `NYT_NEWS_API_URL`
+- `NYT_MOST_POPULAR_API_URL`
+- `BBC_NEWS_RSS_URL`
+- `REUTERS_RSS_URL`
+- `ABC_NEWS_RSS_URL`
+- `SBS_NEWS_RSS_URL`
 - `NEWS_DATA_STORAGE_MODE`
 - `AWS_REGION`
 - `NEWS_DATA_BUCKET`
