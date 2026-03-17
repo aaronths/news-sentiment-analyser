@@ -1,0 +1,22 @@
+services:
+  collection:
+    build: ./services/data-collection
+    # Pass ALL relevant env vars to the container
+    env_file: .env
+    volumes:
+      # This creates a shared 'data' folder between containers
+      - shared-news-data:/data
+
+  retrieval:
+    build: ./services/data-retrieval
+    # Mapping the port from your .env (8001) to the container
+    ports:
+      - "${DATA_RETRIEVAL_PORT:-8001}:${DATA_RETRIEVAL_PORT:-8001}"
+    env_file: .env
+    volumes:
+      - shared-news-data:/data
+    depends_on:
+      - collection
+
+volumes:
+  shared-news-data:

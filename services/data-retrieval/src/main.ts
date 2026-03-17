@@ -1,13 +1,16 @@
 import express from "express";
 import serverless from "serverless-http";
 import path from "path";
+import { loadEnvironment } from "./config/load-environment";
 import { retrievalRouter } from "./routes/retrieval.routes";
 import swaggerUi from 'swagger-ui-express';
 import YAML from 'yamljs';
 import cors from "cors";
 
+loadEnvironment();
+
 export const app = express();
-const PORT = process.env.PORT || 8000;
+const PORT = process.env.DATA_RETRIEVAL_PORT || process.env.PORT || 8001;
 const shouldListen = process.env.JEST_WORKER_ID === undefined;
 
 app.use(express.json());
