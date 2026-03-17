@@ -29,7 +29,7 @@ export const runIngestionPipeline = async (
     sourceIds: options.sourceIds,
     // Use a larger default per-source value so RSS feeds can contribute a richer
     // set of articles without needing explicit environment configuration.
-    perSource: options.perSource ?? 50,
+    perSource: options.perSource ?? 100,
     pages: options.pages,
   });
 
