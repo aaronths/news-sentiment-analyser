@@ -13,6 +13,10 @@ import {
   getSourceComparisonChart,
   getTrending,
   getSources,
+  getArticleVolumeTrend,
+  getApiKey,
+  createApiKey,
+  revokeApiKey,
 } from "../controllers/retrieval.controller";
 
 export const retrievalRouter = Router();
@@ -37,3 +41,10 @@ retrievalRouter.get("/trending", getTrending);
 retrievalRouter.get("/sources", getSources);
 retrievalRouter.get("/chart/sentiment/trend", getSentimentTrendChart);
 retrievalRouter.get("/chart/sources/compare", getSourceComparisonChart);
+
+// additional swagger routes
+retrievalRouter.get("/trend", getArticleVolumeTrend);
+
+retrievalRouter.get("/auth/key", getApiKey);
+retrievalRouter.post("/auth/key", createApiKey);
+retrievalRouter.delete("/auth/key", revokeApiKey);

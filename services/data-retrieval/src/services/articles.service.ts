@@ -269,6 +269,7 @@ export {
   buildMatchHaystack,
   filterArticlesByDateRange,
   filterArticlesByTimeframe,
+  timeframeStartDate,
   getTrendingKeywords,
   labelForCompound,
   loadCleanArticles,
