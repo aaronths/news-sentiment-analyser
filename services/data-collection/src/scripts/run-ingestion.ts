@@ -4,9 +4,14 @@ import { loadEnvironment } from "../config/load-environment";
 // read `process.env` at module-evaluation time (e.g. `news-sources.ts`).
 loadEnvironment();
 
-// Import pipeline after environment is loaded so configured API keys are
-// available during module initialization.
 import { runIngestionPipeline } from "../services/ingestion-pipeline.service";
+import {
+  BACKFILL_INGEST_PAGES,
+  BACKFILL_INGEST_PER_SOURCE,
+  DEFAULT_INGEST_PER_SOURCE,
+  DEFAULT_INGEST_PAGES,
+  DEFAULT_INGEST_SOURCE_IDS,
+} from "../config/ingestion";
 
 const parseSourceIds = (value: string | undefined) => {
   if (!value) {
@@ -29,14 +34,39 @@ const parseNumber = (value: string | undefined, fallback?: number) => {
   return Number.isNaN(parsed) ? fallback : parsed;
 };
 
+const getCliArg = (name: string): string | undefined => {
+  const arg = process.argv.find((a) => a.startsWith(`--${name}=`));
+  if (!arg) return undefined;
+  return arg.split("=")[1];
+};
+
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const main = async () => {
-  const perSource = parseNumber(process.env.INGEST_PER_SOURCE);
-  const sourceIds = parseSourceIds(process.env.INGEST_SOURCE_IDS);
-  const pages = parseNumber(process.env.INGEST_PAGES, 1) ?? 1;
-  const intervalMs = parseNumber(process.env.INGEST_INTERVAL_MS);
-  const maxIterations = parseNumber(process.env.INGEST_MAX_ITERATIONS);
+  const backfill = Boolean(getCliArg("backfill"));
+
+  const perSource =
+    parseNumber(getCliArg("perSource")) ??
+    parseNumber(process.env.INGEST_PER_SOURCE) ??
+    (backfill ? BACKFILL_INGEST_PER_SOURCE : DEFAULT_INGEST_PER_SOURCE);
+
+  const sourceIds =
+    parseSourceIds(getCliArg("sourceIds")) ??
+    parseSourceIds(process.env.INGEST_SOURCE_IDS) ??
+    DEFAULT_INGEST_SOURCE_IDS;
+
+  const pages =
+    parseNumber(getCliArg("pages"), backfill ? BACKFILL_INGEST_PAGES : DEFAULT_INGEST_PAGES) ??
+    parseNumber(process.env.INGEST_PAGES, backfill ? BACKFILL_INGEST_PAGES : DEFAULT_INGEST_PAGES) ??
+    (backfill ? BACKFILL_INGEST_PAGES : DEFAULT_INGEST_PAGES);
+
+  const intervalMs =
+    parseNumber(getCliArg("intervalMs")) ??
+    parseNumber(process.env.INGEST_INTERVAL_MS);
+
+  const maxIterations =
+    parseNumber(getCliArg("maxIterations")) ??
+    parseNumber(process.env.INGEST_MAX_ITERATIONS);
 
   const runOnce = async () => {
     const summary = await runIngestionPipeline({

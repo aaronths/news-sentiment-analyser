@@ -2,13 +2,16 @@ openapi: 3.0.0
 info:
   title: News Sentiment Analyzer - Retrieval API
   description: API for retrieving indexed news and running sentiment analytics.
-  version: 1.2.0
+  version: 1.3.0
 
 servers:
   - url: http://localhost:8000
     description: Local development server
   - url: https://mbqiv0owad.execute-api.us-east-1.amazonaws.com/dev
     description: AWS API Gateway (Dev environment)
+
+security:
+  - ApiKeyAuth: []
 
 paths:
   /api/articles:
@@ -54,11 +57,13 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ArticlesResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
 
   /api/articles/metadata:
     get:
       summary: Retrieve article metadata
-      description: Returns article titles, authors, dates, and sources without the full body
+      description: Returns article titles, authors, dates, and sources without the full body.
       parameters:
         - name: keyword
           in: query
@@ -74,11 +79,13 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/ArticleMetadata"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
 
   /api/articles/{id}:
     get:
       summary: Retrieve a single article by ID
-      description: Returns the full article including body content
+      description: Returns the full article including body content.
       parameters:
         - name: id
           in: path
@@ -93,6 +100,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Article"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
         "404":
           description: Article not found
           content:
@@ -103,7 +112,7 @@ paths:
   /api/articles/{id}/sentiment:
     get:
       summary: Get sentiment for a single article
-      description: Returns sentiment analysis scoped to a specific article by ID
+      description: Returns sentiment analysis scoped to a specific article by ID.
       parameters:
         - name: id
           in: path
@@ -118,6 +127,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ArticleSentimentResult"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
         "404":
           description: Article not found
           content:
@@ -128,7 +139,7 @@ paths:
   /api/sentiment:
     get:
       summary: Get sentiment analysis for a keyword
-      description: Runs sentiment analysis on articles matching a keyword
+      description: Runs sentiment analysis on articles matching a keyword.
       parameters:
         - name: keyword
           in: query
@@ -157,6 +168,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/SentimentResult"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
 
   /api/sentiment/source:
     get:
@@ -190,6 +203,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/SentimentResult"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
 
   /api/sentiment/compare:
     get:
@@ -223,11 +238,13 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/SentimentComparisonResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
 
   /api/sentiment/trend:
     get:
       summary: Get sentiment trend for a keyword over time
-      description: Returns how sentiment for a specific keyword has changed over a given timeframe, bucketed by day
+      description: Returns how sentiment for a specific keyword has changed over a given timeframe, bucketed by day.
       parameters:
         - name: keyword
           in: query
@@ -262,6 +279,53 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/TimeframeError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/trend:
+    get:
+      summary: Get article volume trend for a keyword over time
+      description: >
+        Returns a time-series showing how many articles mentioning a keyword were
+        published within the given timeframe. Bucketed by day for 7d/30d, and by
+        hour for 24h. Zero-filled gaps are included so the series is continuous
+        and ready to plot directly.
+      parameters:
+        - name: keyword
+          in: query
+          required: true
+          schema:
+            type: string
+          example: inflation
+        - name: timeframe
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [24h, 7d, 30d]
+            default: 7d
+          example: 7d
+        - name: sourceId
+          in: query
+          required: false
+          schema:
+            type: string
+          example: guardian
+      responses:
+        "200":
+          description: Article volume time series
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ArticleVolumeTrend"
+        "400":
+          description: Invalid or missing keyword/timeframe parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TimeframeError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
 
   /api/trending:
     get:
@@ -294,11 +358,13 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/TimeframeError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
 
   /api/sources:
     get:
       summary: List available news sources
-      description: Returns all news sources currently indexed in the system
+      description: Returns all news sources currently indexed in the system.
       parameters:
         - name: limit
           in: query
@@ -323,6 +389,8 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/Source"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
 
   /api/chart/sentiment/trend:
     get:
@@ -355,6 +423,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ChartPayload"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
 
   /api/chart/sources/compare:
     get:
@@ -387,6 +457,78 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ChartPayload"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/auth/key:
+    get:
+      summary: Retrieve current API key details
+      description: >
+        Returns metadata about the authenticated user's active API key.
+        The raw key value is never returned after initial creation.
+      responses:
+        "200":
+          description: API key metadata
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiKeyMetadata"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: No active API key found for this user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthError"
+
+    post:
+      summary: Create a new API key
+      description: >
+        Generates a new API key. The full key value is returned only once in
+        this response and cannot be retrieved again — store it securely.
+        This is the only route that does not require an existing API key.
+      security: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ApiKeyCreateRequest"
+      responses:
+        "201":
+          description: API key created successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiKeyCreateResponse"
+        "409":
+          description: An active API key already exists for this user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthError"
+
+    delete:
+      summary: Revoke the current API key
+      description: >
+        Permanently revokes the authenticated user's active API key.
+        Any subsequent requests using this key will be rejected immediately.
+      responses:
+        "200":
+          description: API key revoked successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiKeyRevokeResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: No active API key found for this user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthError"
 
   /api/chart/mentions/monthly:
     get:
@@ -490,6 +632,20 @@ paths:
                 $ref: "#/components/schemas/KeywordError"
 
 components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+
+  responses:
+    Unauthorized:
+      description: Missing or invalid API key
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/AuthError"
+
   schemas:
     Article:
       type: object
@@ -655,6 +811,43 @@ components:
                 type: integer
                 example: 14
 
+    ArticleVolumeTrend:
+      type: object
+      properties:
+        keyword:
+          type: string
+          example: inflation
+        sourceId:
+          type: string
+          nullable: true
+          example: guardian
+        timeframe:
+          type: string
+          enum: [24h, 7d, 30d]
+          example: 7d
+        totalArticles:
+          type: integer
+          description: Total number of matching articles across the entire timeframe
+          example: 94
+        dataPoints:
+          type: array
+          description: >
+            One entry per day (7d/30d) or per hour (24h), ordered chronologically.
+            Zero-count buckets are included for a continuous, plot-ready series.
+          items:
+            type: object
+            properties:
+              date:
+                type: string
+                description: >
+                  ISO 8601 date for 7d/30d buckets (YYYY-MM-DD), or ISO 8601
+                  datetime truncated to the hour for 24h buckets (YYYY-MM-DDTHH:00:00Z).
+                example: "2025-03-01"
+              articleCount:
+                type: integer
+                description: Number of matching articles published in this bucket
+                example: 12
+
     Source:
       type: object
       properties:
@@ -745,12 +938,84 @@ components:
         self:
           type: string
 
+    ApiKeyMetadata:
+      type: object
+      properties:
+        keyId:
+          type: string
+          description: Unique identifier for the API key
+          example: key_abc123
+        label:
+          type: string
+          description: Human-readable label assigned at creation
+          example: My production key
+        createdAt:
+          type: string
+          format: date-time
+        lastUsedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Timestamp of the most recent authenticated request, or null if never used
+        status:
+          type: string
+          enum: [active, revoked]
+          example: active
+
+    ApiKeyCreateRequest:
+      type: object
+      properties:
+        label:
+          type: string
+          description: Optional human-readable label to identify this key
+          example: My production key
+
+    ApiKeyCreateResponse:
+      type: object
+      properties:
+        keyId:
+          type: string
+          example: key_abc123
+        key:
+          type: string
+          description: The full API key value — shown only once, store it securely
+          example: nsa_live_x7k2...
+        label:
+          type: string
+          example: My production key
+        createdAt:
+          type: string
+          format: date-time
+
+    ApiKeyRevokeResponse:
+      type: object
+      properties:
+        keyId:
+          type: string
+          example: key_abc123
+        revokedAt:
+          type: string
+          format: date-time
+        message:
+          type: string
+          example: API key revoked successfully
+
+    AuthError:
+      type: object
+      properties:
+        code:
+          type: integer
+          example: 401
+        message:
+          type: string
+          example: "Missing or invalid API key"
+
     ArticleNotFoundError:
       type: object
       properties:
         code:
           type: integer
-          example: 400
+          example: 404
         message:
           type: string
           example: "Article could not be found (invalid article id)"

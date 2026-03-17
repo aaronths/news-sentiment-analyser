@@ -12,7 +12,9 @@ Reshuffled MVP for two modes:
 Location: [services/data-collection](services/data-collection)
 
 - collects general news articles from configured outlets
-- currently need to add the API keys, potentially will be work done on alternative scraping-based collection methods in the future
+- supports provider adapters for first-party APIs and RSS feeds
+- current first-party API adapters: The Guardian Search API, New York Times Top Stories API, New York Times Most Popular API
+- current RSS adapters include BBC, Reuters, ABC (AU), and SBS
 - preprocesses the raw payload into one clean schema
 - writes local snapshots to [data/raw-articles.json](data/raw-articles.json) and [data/clean-articles.json](data/clean-articles.json)
 - uses local mock file storage until s3 is setup
@@ -82,12 +84,13 @@ Copy [.env.example](.env.example) to `.env` and replace placeholders.
 Important values:
 
 - `GUARDIAN_API_KEY`
-- `ABC_NEWS_API_KEY`
-- `ABC_NEWS_API_URL`
-- `SBS_NEWS_API_KEY`
-- `SBS_NEWS_API_URL`
 - `NYT_NEWS_API_KEY`
 - `NYT_NEWS_API_URL`
+- `NYT_MOST_POPULAR_API_URL`
+- `BBC_NEWS_RSS_URL`
+- `REUTERS_RSS_URL`
+- `ABC_NEWS_RSS_URL`
+- `SBS_NEWS_RSS_URL`
 - `NEWS_DATA_STORAGE_MODE`
 - `AWS_REGION`
 - `NEWS_DATA_BUCKET`
@@ -104,16 +107,29 @@ Run ingestion:
 
 - `cd services/data-collection && npm run ingest`
 
-You can also run continuously (polling every N milliseconds) by setting:
+You can override ingestion behavior using CLI flags (recommended) or env vars as a fallback. Examples:
+
+- Run with a custom per-source article limit:
+  - `npm run ingest -- --perSource=150`
+
+- Run only a subset of sources:
+  - `npm run ingest -- --sourceIds=bbc,abc` (comma-separated IDs)
+
+- Fetch more pages (where supported):
+  - `npm run ingest -- --pages=3`
+
+- **Backfill mode** (larger defaults to try to fetch deeper history where pagination is available):
+  - `npm run ingest -- --backfill`
+
+You can still run continuously by setting:
 
 - `INGEST_INTERVAL_MS` (e.g. `60000` to re-run every minute)
 - `INGEST_MAX_ITERATIONS` (optional, stops after N runs)
-- `INGEST_PAGES` (optional, fetches additional pages where supported — useful for backfilling older stories)
 
 Result:
 
 - local files are refreshed
-- mock storage writes to the local files by default
+- mock storage writes to local files by default
 - S3 upload runs only if storage mode is switched to `s3`
 
 ## Runtime Lambda flow

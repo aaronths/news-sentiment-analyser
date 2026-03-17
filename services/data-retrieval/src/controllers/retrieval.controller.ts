@@ -1,3 +1,4 @@
+import crypto from "crypto";
 import { Request, Response } from "express";
 import type { ChartConfiguration } from "chart.js";
 import {
@@ -10,6 +11,7 @@ import {
   loadCleanArticles,
   parseLimit,
   parseTimeframe,
+  timeframeStartDate,
   labelForCompound,
   Timeframe,
 } from "../services/articles.service";
@@ -705,5 +707,157 @@ export const getMonthlyMentionsBySourceChartImage = async (req: Request, res: Re
   res.setHeader("Content-Type", "image/png");
   res.setHeader("Cache-Control", "no-store");
   res.send(image);
+};
+
+const KEY_HEADER = "x-api-key";
+
+type ApiKeyStatus = "active" | "revoked";
+
+type ApiKeyRecord = {
+  keyId: string;
+  key: string;
+  label?: string;
+  createdAt: string;
+  lastUsedAt: string | null;
+  status: ApiKeyStatus;
+};
+
+let activeApiKey: ApiKeyRecord | null = null;
+
+function getApiKeyFromRequest(req: Request): string | null {
+  const header = req.header(KEY_HEADER) || req.header(KEY_HEADER.toUpperCase());
+  return typeof header === "string" ? header : null;
+}
+
+function validateApiKey(req: Request): ApiKeyRecord | null {
+  const key = getApiKeyFromRequest(req);
+  if (!key || !activeApiKey || activeApiKey.status !== "active") return null;
+  if (key !== activeApiKey.key) return null;
+  activeApiKey.lastUsedAt = new Date().toISOString();
+  return activeApiKey;
+}
+
+export const getApiKey = async (req: Request, res: Response) => {
+  const record = validateApiKey(req);
+  if (!record) {
+    if (activeApiKey && activeApiKey.status === "revoked") {
+      return res
+        .status(404)
+        .json({ code: 404, message: "No active API key found for this user" });
+    }
+    return res.status(401).json({ code: 401, message: "Missing or invalid API key" });
+  }
+
+  res.json({
+    keyId: record.keyId,
+    label: record.label,
+    createdAt: record.createdAt,
+    lastUsedAt: record.lastUsedAt,
+    status: record.status,
+  });
+};
+
+export const createApiKey = async (req: Request, res: Response) => {
+  if (activeApiKey && activeApiKey.status === "active") {
+    return res
+      .status(409)
+      .json({ code: 409, message: "An active API key already exists for this user" });
+  }
+
+  const label = String(req.body?.label || "").trim() || undefined;
+  const keyId = crypto.randomUUID();
+  const key = crypto.randomBytes(24).toString("hex");
+  const now = new Date().toISOString();
+  activeApiKey = {
+    keyId,
+    key,
+    label,
+    createdAt: now,
+    lastUsedAt: null,
+    status: "active",
+  };
+
+  res.status(201).json({ keyId, key, label, createdAt: now });
+};
+
+export const revokeApiKey = async (req: Request, res: Response) => {
+  const record = validateApiKey(req);
+  if (!record) {
+    if (activeApiKey && activeApiKey.status === "active") {
+      return res.status(401).json({ code: 401, message: "Missing or invalid API key" });
+    }
+    return res
+      .status(404)
+      .json({ code: 404, message: "No active API key found for this user" });
+  }
+
+  record.status = "revoked";
+  const revokedAt = new Date().toISOString();
+  res.json({ keyId: record.keyId, revokedAt, message: "API key revoked successfully" });
+};
+
+export const getArticleVolumeTrend = async (req: Request, res: Response) => {
+  const keyword = String(req.query.keyword || "").trim();
+  if (!keyword) {
+    return res.status(400).json({ code: 400, message: "keyword required" });
+  }
+
+  const timeframe = parseTimeframe(String(req.query.timeframe || "").trim(), "7d");
+  if (!timeframe) {
+    return res.status(400).json({ code: 400, message: "Invalid timeframe parameter" });
+  }
+
+  const sourceId = String(req.query.sourceId || "").trim() || undefined;
+  const matched = filterArticlesByTimeframe(await searchArticles(keyword, sourceId), timeframe);
+
+  const start = timeframeStartDate(timeframe);
+  const now = new Date();
+
+  const bucketKey = (date: Date) => {
+    if (timeframe === "24h") {
+      // ISO string truncated to the hour
+      const d = new Date(date);
+      d.setMinutes(0, 0, 0);
+      return d.toISOString().replace(/\.\d{3}Z$/, "Z");
+    }
+    // Daily buckets
+    return date.toISOString().slice(0, 10);
+  };
+
+  const bucketIncrement = (date: Date): Date => {
+    const next = new Date(date);
+    if (timeframe === "24h") {
+      next.setHours(next.getHours() + 1);
+      return next;
+    }
+    next.setDate(next.getDate() + 1);
+    return next;
+  };
+
+  const buckets = new Map<string, number>();
+  for (let cursor = new Date(start); cursor <= now; cursor = bucketIncrement(cursor)) {
+    buckets.set(bucketKey(cursor), 0);
+  }
+
+  for (const article of matched) {
+    const published = new Date(String(article.publishedAt || ""));
+    if (Number.isNaN(published.getTime()) || published < start || published > now) {
+      continue;
+    }
+    const key = bucketKey(published);
+    buckets.set(key, (buckets.get(key) || 0) + 1);
+  }
+
+  const dataPoints = Array.from(buckets.entries())
+    .sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0))
+    .map(([date, articleCount]) => ({ date, articleCount }));
+
+  res.json({
+    keyword,
+    sourceId,
+    timeframe,
+    totalArticles: matched.length,
+    dataPoints,
+  });
 };
 

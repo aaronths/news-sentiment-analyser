@@ -24,10 +24,10 @@ app.use("/api", collectionRouter);
 export const handler = serverless(app);
 
 // --- LOCAL SERVER LOGIC ---
-// Only start the Express server if we are running locally (not in AWS Lambda)
+// Only start / expose the local Express server when running locally (not in AWS Lambda).
 // AWS sets the AWS_EXECUTION_ENV variable automatically, so we can use it as a flag.
-if (!process.env.AWS_EXECUTION_ENV && shouldListen) {
-  app.listen(PORT, () => {
-    console.log(`Data Collection service running locally on port ${PORT}`);
-  });
-}
+export const server = (!process.env.AWS_EXECUTION_ENV && shouldListen)
+  ? app.listen(PORT, () => {
+      console.log(`Data Collection service running locally on port ${PORT}`);
+    })
+  : null;

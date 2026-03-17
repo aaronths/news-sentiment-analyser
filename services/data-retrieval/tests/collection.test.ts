@@ -286,3 +286,50 @@ describe("Swagger endpoints", () => {
     expect(res.text).toContain("openapi: 3.0.0");
   });
 });
+
+describe("Trend endpoint", () => {
+  it("GET /api/trend returns volume series", async () => {
+    const res = await request(app).get("/api/trend").query({ keyword: "economy" });
+    expect(res.status).toBe(200);
+    expect(res.body.keyword).toBe("economy");
+    expect(typeof res.body.totalArticles).toBe("number");
+    expect(Array.isArray(res.body.dataPoints)).toBe(true);
+  });
+});
+
+describe("API key endpoints", () => {
+  let apiKey: string;
+
+  it("POST /api/auth/key creates a new key", async () => {
+    const res = await request(app).post("/api/auth/key").send({ label: "test key" });
+    expect(res.status).toBe(201);
+    expect(res.body.keyId).toBeDefined();
+    expect(res.body.key).toBeDefined();
+    apiKey = res.body.key;
+  });
+
+  it("GET /api/auth/key returns metadata when authenticated", async () => {
+    const res = await request(app)
+      .get("/api/auth/key")
+      .set("X-API-Key", apiKey);
+    expect(res.status).toBe(200);
+    expect(res.body.keyId).toBeDefined();
+    expect(res.body.status).toBe("active");
+  });
+
+  it("DELETE /api/auth/key revokes the key", async () => {
+    const res = await request(app)
+      .delete("/api/auth/key")
+      .set("X-API-Key", apiKey);
+    expect(res.status).toBe(200);
+    expect(res.body.keyId).toBeDefined();
+    expect(res.body.message).toContain("revoked");
+  });
+
+  it("GET /api/auth/key returns 404 after revocation", async () => {
+    const res = await request(app)
+      .get("/api/auth/key")
+      .set("X-API-Key", apiKey);
+    expect(res.status).toBe(404);
+  });
+});

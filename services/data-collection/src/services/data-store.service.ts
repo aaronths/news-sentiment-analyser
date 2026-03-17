@@ -52,3 +52,19 @@ export const appendRawArticles = async (articles: RawArticle[]) => {
 };
 
 export const getRawArticlesPath = () => RAW_ARTICLES_PATH;
+
+const INGEST_SUMMARY_PATH = path.join(getDataDirectory(), "ingest-summary.json");
+
+export const writeIngestSummary = async (summary: unknown) => {
+  await ensureStorage();
+  await fs.writeFile(INGEST_SUMMARY_PATH, `${JSON.stringify(summary, null, 2)}\n`, "utf-8");
+};
+
+export const readIngestSummary = async (): Promise<unknown | null> => {
+  try {
+    const data = await fs.readFile(INGEST_SUMMARY_PATH, "utf-8");
+    return JSON.parse(data);
+  } catch {
+    return null;
+  }
+};

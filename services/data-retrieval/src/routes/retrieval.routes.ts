@@ -15,6 +15,10 @@ import {
   getSourceComparisonChart,
   getTrending,
   getSources,
+  getArticleVolumeTrend,
+  getApiKey,
+  createApiKey,
+  revokeApiKey,
 } from "../controllers/retrieval.controller";
 import {
   getDistributionChartData,
@@ -51,3 +55,10 @@ retrievalRouter.get("/chart/sentiment/trend", getSentimentTrendChart);
 retrievalRouter.get("/chart/sources/compare", getSourceComparisonChart);
 retrievalRouter.get("/chart/mentions/monthly", getMonthlyMentionsBySourceChart);
 retrievalRouter.get("/chart/mentions/monthly.png", getMonthlyMentionsBySourceChartImage);
+
+// additional swagger routes
+retrievalRouter.get("/trend", getArticleVolumeTrend);
+
+retrievalRouter.get("/auth/key", getApiKey);
+retrievalRouter.post("/auth/key", createApiKey);
+retrievalRouter.delete("/auth/key", revokeApiKey);

@@ -223,24 +223,83 @@ function aggregateSources(articles: any[]): SourceSummary[] {
 }
 
 function getTrendingKeywords(articles: any[], limit: number) {
+  const stopwords = new Set([
+    // Common stopwords and filler words
+    "the",
+    "and",
+    "for",
+    "with",
+    "that",
+    "this",
+    "from",
+    "have",
+    "has",
+    "are",
+    "was",
+    "were",
+    "will",
+    "your",
+    "you",
+    "about",
+    "their",
+    "they",
+    "them",
+    "but",
+    "not",
+    "what",
+    "when",
+    "where",
+    "which",
+    "who",
+    "why",
+    "how",
+    "been",
+    "into",
+    "over",
+    "more",
+    "also",
+    "only",
+    "just",
+    "like",
+    "new",
+    "news",
+    "today",
+    "video",
+    "watch",
+  ]);
+
   const counts = new Map<string, number>();
+  const docFrequency = new Map<string, number>();
 
   for (const article of articles) {
+    const seen = new Set<string>();
     const tokens = Array.isArray(article.keywordTokens)
       ? article.keywordTokens
       : String(article.title || "")
           .toLowerCase()
           .match(/[a-z0-9]+/g) || [];
+
     for (const token of tokens) {
       const normalized = String(token || "").trim().toLowerCase();
-      if (!normalized || normalized.length < 3) {
+      if (!normalized || normalized.length < 4 || stopwords.has(normalized)) {
         continue;
       }
+
       counts.set(normalized, (counts.get(normalized) || 0) + 1);
+      if (!seen.has(normalized)) {
+        seen.add(normalized);
+        docFrequency.set(normalized, (docFrequency.get(normalized) || 0) + 1);
+      }
     }
   }
 
+  // Exclude terms that appear in more than this fraction of articles.
+  // Lower threshold means we treat more words as "too common" (e.g., {}
+  // or "people") and thus exclude them from trending keywords.
+  const threshold = Math.max(1, Math.floor(articles.length * 0.25));
+
   return Array.from(counts.entries())
+    .filter(([keyword]) => (docFrequency.get(keyword) ?? 0) <= threshold)
     .sort((a, b) => b[1] - a[1])
     .slice(0, limit)
     .map(([keyword, count]) => ({ keyword, count }));
@@ -333,6 +392,7 @@ export {
   buildMatchHaystack,
   filterArticlesByDateRange,
   filterArticlesByTimeframe,
+  timeframeStartDate,
   getTrendingKeywords,
   labelForCompound,
   loadCleanArticles,
