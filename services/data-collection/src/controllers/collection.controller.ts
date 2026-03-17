@@ -28,7 +28,9 @@ export const collectArticles = async (req: Request, res: Response) => {
 
   const { articles, sourceBreakdown } = await collectArticlesFromSources({
     sourceIds,
-    perSource: requestedPerSource ?? 5,
+    // Default to a higher number to better surface feed-based sources (RSS can
+    // provide dozens of entries; older default of 5 felt too low).
+    perSource: requestedPerSource ?? 50,
     keyword,
   });
 

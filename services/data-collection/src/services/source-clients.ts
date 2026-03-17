@@ -101,7 +101,10 @@ interface AtomEntry {
   link?: { href?: string } | Array<{ href?: string }>;
 }
 
-const MAX_DEFAULT_PER_SOURCE = 5;
+// Default number of articles to request per source when not specified.
+// RSS feeds typically publish a limited number of items per feed; increasing
+// this helps capture more items from sources that offer more than the default.
+const MAX_DEFAULT_PER_SOURCE = 100;
 
 const sampleArticlesBySource: Record<string, RawArticle[]> = {
   guardian: [
@@ -268,7 +271,9 @@ const clampPerSource = (perSource: number | undefined) => {
     return MAX_DEFAULT_PER_SOURCE;
   }
 
-  return Math.min(Math.max(Math.trunc(perSource), 1), 25);
+  // Allow higher per-source fetch counts to support RSS feeds which can provide
+  // more entries than the previous hard cap.
+  return Math.min(Math.max(Math.trunc(perSource), 1), 50);
 };
 
 const fetchJson = <T>(url: URL, headers: Record<string, string> = {}): Promise<T> => {

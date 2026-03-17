@@ -27,7 +27,9 @@ export const runIngestionPipeline = async (
   const startedAt = new Date().toISOString();
   const { articles, sourceBreakdown } = await collectArticlesFromSources({
     sourceIds: options.sourceIds,
-    perSource: options.perSource ?? 10,
+    // Use a larger default per-source value so RSS feeds can contribute a richer
+    // set of articles without needing explicit environment configuration.
+    perSource: options.perSource ?? 50,
     pages: options.pages,
   });
 
