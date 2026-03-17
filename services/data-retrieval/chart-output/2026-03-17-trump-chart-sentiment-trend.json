@@ -9,7 +9,7 @@
                          "label":  "Average Sentiment",
                          "data":  [
                                       -0.5267,
-                                      -0.1943
+                                      -0.192
                                   ],
                          "borderColor":  "#1f77b4",
                          "yAxisID":  "y"
@@ -18,7 +18,7 @@
                          "label":  "Article Count",
                          "data":  [
                                       1,
-                                      35
+                                      37
                                   ],
                          "borderColor":  "#ff7f0e",
                          "yAxisID":  "y1"

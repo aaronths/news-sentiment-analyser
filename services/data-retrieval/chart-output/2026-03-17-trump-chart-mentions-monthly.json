@@ -16,11 +16,11 @@
                ],
     "datasets":  [
                      {
-                         "label":  "The Guardian",
+                         "label":  "New York Times",
                          "data":  [
                                       0,
                                       0,
-                                      3,
+                                      5,
                                       0,
                                       0,
                                       0,
@@ -36,7 +36,7 @@
                          "borderWidth":  1
                      },
                      {
-                         "label":  "New York Times",
+                         "label":  "The Guardian",
                          "data":  [
                                       0,
                                       0,
@@ -101,6 +101,6 @@
                  "year":  2026,
                  "sourceLimit":  6,
                  "sourcesCompared":  4,
-                 "totalMentions":  9
+                 "totalMentions":  11
              }
 }

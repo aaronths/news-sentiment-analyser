@@ -199,6 +199,7 @@ function Start-ManagedApiProcess {
   foreach ($entry in $DataEnvironment.GetEnumerator()) {
     $processEnvironment[$entry.Key] = $entry.Value
   }
+  $processEnvironment["DATA_RETRIEVAL_PORT"] = [string]$ApiPort
   $processEnvironment["PORT"] = [string]$ApiPort
   $processEnvironment["RUNTIME_CACHE_TTL_SECONDS"] = "0"
 
