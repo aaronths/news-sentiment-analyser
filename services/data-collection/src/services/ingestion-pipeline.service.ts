@@ -2,6 +2,7 @@ import {
   appendRawArticles,
   getRawArticlesPath,
   readRawArticles,
+  writeIngestSummary,
 } from "./data-store.service";
 import { collectArticlesFromSources } from "./source-clients";
 import { getCleanArticlesPath, writeCleanArticles } from "./clean-store.service";
@@ -27,7 +28,9 @@ export const runIngestionPipeline = async (
   const startedAt = new Date().toISOString();
   const { articles, sourceBreakdown } = await collectArticlesFromSources({
     sourceIds: options.sourceIds,
-    perSource: options.perSource ?? 10,
+    // Use a larger default per-source value so RSS feeds can contribute a richer
+    // set of articles without needing explicit environment configuration.
+    perSource: options.perSource ?? 100,
     pages: options.pages,
   });
 
@@ -35,6 +38,17 @@ export const runIngestionPipeline = async (
   const rawArticles = await readRawArticles();
   const cleanArticles = preprocessArticles(rawArticles);
   const cleanStorageResult = await writeCleanArticles(cleanArticles);
+
+  // Persist the latest ingestion summary so it can be inspected via API.
+  await writeIngestSummary({
+    startedAt,
+    finishedAt: new Date().toISOString(),
+    collectedCount: articles.length,
+    cleanCount: cleanArticles.length,
+    rawStorageCount: rawStorageResult.totalArticles,
+    cleanStorageCount: cleanStorageResult.totalArticles,
+    sourceBreakdown,
+  });
 
   const [rawUpload, cleanUpload] = await Promise.all([
     uploadFileToS3({

@@ -1,6 +1,10 @@
 import { Request, Response } from "express";
 import { NEWS_SOURCES, isSourceConfigured } from "../config/news-sources";
-import { appendRawArticles, readRawArticles } from "../services/data-store.service";
+import {
+  appendRawArticles,
+  readIngestSummary,
+  readRawArticles,
+} from "../services/data-store.service";
 import { collectArticlesFromSources } from "../services/source-clients";
 
 export const listSources = async (req: Request, res: Response) => {
@@ -28,7 +32,9 @@ export const collectArticles = async (req: Request, res: Response) => {
 
   const { articles, sourceBreakdown } = await collectArticlesFromSources({
     sourceIds,
-    perSource: requestedPerSource ?? 5,
+    // Default to a higher number to better surface feed-based sources (RSS can
+    // provide dozens of entries; older default of 5 felt too low).
+    perSource: requestedPerSource ?? 100,
     keyword,
   });
 
@@ -59,4 +65,13 @@ export const getRawArticles = async (req: Request, res: Response) => {
     totalArticles: filteredArticles.length,
     articles,
   });
+};
+
+export const getIngestionReport = async (req: Request, res: Response) => {
+  const report = await readIngestSummary();
+  if (!report) {
+    return res.status(404).json({ message: "No ingestion report available" });
+  }
+
+  res.json(report);
 };
