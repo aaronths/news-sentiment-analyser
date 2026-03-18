@@ -530,6 +530,107 @@ paths:
               schema:
                 $ref: "#/components/schemas/AuthError"
 
+  /api/chart/mentions/monthly:
+    get:
+      summary: Chart.js payload for monthly keyword mentions by source
+      description: Returns a comparative bar chart showing how many article titles mention the keyword each month in a selected year, grouped by source.
+      parameters:
+        - name: keyword
+          in: query
+          required: true
+          schema:
+            type: string
+          example: Trump
+        - name: year
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 2000
+            maximum: 2100
+            default: 2026
+          example: 2025
+        - name: sourceLimit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 20
+            default: 6
+          example: 5
+      responses:
+        "200":
+          description: Chart.js grouped bar chart payload
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChartPayload"
+        "400":
+          description: Invalid or missing keyword/year parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/KeywordError"
+
+  /api/chart/mentions/monthly.png:
+    get:
+      summary: Rendered PNG chart for monthly keyword mentions by source
+      description: Returns a rendered grouped bar chart image showing monthly title mentions by source for a keyword and year.
+      parameters:
+        - name: keyword
+          in: query
+          required: true
+          schema:
+            type: string
+          example: Trump
+        - name: year
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 2000
+            maximum: 2100
+            default: 2026
+          example: 2025
+        - name: sourceLimit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 20
+            default: 6
+          example: 5
+        - name: width
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 1400
+          example: 1600
+        - name: height
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 800
+          example: 900
+      responses:
+        "200":
+          description: PNG image response
+          content:
+            image/png:
+              schema:
+                type: string
+                format: binary
+        "400":
+          description: Invalid or missing keyword/year parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/KeywordError"
+
 components:
   securitySchemes:
     ApiKeyAuth:

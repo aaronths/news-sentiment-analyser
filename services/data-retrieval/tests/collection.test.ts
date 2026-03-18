@@ -20,6 +20,7 @@ beforeAll(() => {
   // service expects the fallback at project-root/data/clean-articles.json
   // __dirname is services/data-retrieval/tests; go up three levels to repo root
   const dataPath = path.resolve(__dirname, "../../../data/clean-articles.json");
+  const currentYear = new Date().getUTCFullYear();
   const sample = [
     {
       id: "test_article",
@@ -32,6 +33,55 @@ beforeAll(() => {
       url: "http://example.com/test",
       keywordTokens: ["economy", "test"],
       sentimentText: "This is a test article about economy and other things."
+    },
+    {
+      id: "precomputed_sentiment_article",
+      sourceId: "precomputed",
+      sourceName: "Precomputed Source",
+      title: "Customscore market update",
+      body: "Fantastic outcomes and optimistic language.",
+      summary: "Precomputed sentiment record",
+      publishedAt: new Date().toISOString(),
+      url: "http://example.com/precomputed",
+      keywordTokens: ["customscore", "market"],
+      sentimentText: "Fantastic outcomes and optimistic language.",
+      sentiment: -0.8
+    },
+    {
+      id: "trump_jan_test",
+      sourceId: "test",
+      sourceName: "Test Source",
+      title: "Trump rally draws crowds",
+      body: "Coverage focused on Trump and campaign reactions.",
+      summary: "Trump mention in January",
+      publishedAt: `${currentYear}-01-15T12:00:00.000Z`,
+      url: "http://example.com/trump-jan",
+      keywordTokens: ["trump", "campaign"],
+      sentimentText: "Coverage focused on Trump and campaign reactions."
+    },
+    {
+      id: "trump_feb_precomputed",
+      sourceId: "precomputed",
+      sourceName: "Precomputed Source",
+      title: "Markets react as Trump comments on policy",
+      body: "Analysts examined financial impact after Trump remarks.",
+      summary: "Trump mention in February",
+      publishedAt: `${currentYear}-02-11T08:30:00.000Z`,
+      url: "http://example.com/trump-feb",
+      keywordTokens: ["trump", "markets"],
+      sentimentText: "Analysts examined financial impact after Trump remarks."
+    },
+    {
+      id: "trump_feb_test",
+      sourceId: "test",
+      sourceName: "Test Source",
+      title: "Analysts discuss Trump speech",
+      body: "Another article mentioning Trump in title for monthly chart checks.",
+      summary: "Second Trump mention in February",
+      publishedAt: `${currentYear}-02-23T17:45:00.000Z`,
+      url: "http://example.com/trump-feb-2",
+      keywordTokens: ["trump", "speech"],
+      sentimentText: "Another article mentioning Trump in title for monthly chart checks."
     }
   ];
   fs.mkdirSync(path.dirname(dataPath), { recursive: true });
@@ -107,6 +157,37 @@ describe("Swagger endpoints", () => {
     expect(res.body.articleCount).toBeGreaterThanOrEqual(0);
   });
 
+  it("GET /api/sentiment uses precomputed score when provided", async () => {
+    const res = await request(app)
+      .get("/api/sentiment")
+      .query({ keyword: "customscore" });
+
+    expect(res.status).toBe(200);
+    expect(res.body.keyword).toBe("customscore");
+    expect(res.body.articleCount).toBe(1);
+    expect(res.body.averageSentiment).toBeLessThan(-0.5);
+  });
+
+  it("GET /api/charts/rankings with keyword returns Chart.js config", async () => {
+    const res = await request(app)
+      .get("/api/charts/rankings")
+      .query({ keyword: "economy" });
+
+    expect(res.status).toBe(200);
+    expect(res.body.type).toBe("bar");
+    expect(Array.isArray(res.body?.data?.datasets)).toBe(true);
+  });
+
+  it("GET /api/charts/rankings.png with keyword returns image", async () => {
+    const res = await request(app)
+      .get("/api/charts/rankings.png")
+      .query({ keyword: "economy" });
+
+    expect(res.status).toBe(200);
+    expect(res.headers["content-type"]).toContain("image/png");
+    expect(res.body).toBeDefined();
+  });
+
   it("GET /api/sources returns indexed source list", async () => {
     const res = await request(app).get("/api/sources").query({ limit: 5 });
     expect(res.status).toBe(200);
@@ -162,6 +243,34 @@ describe("Swagger endpoints", () => {
     expect(res.body.chartType).toBe("bar");
     expect(Array.isArray(res.body.labels)).toBe(true);
     expect(Array.isArray(res.body.datasets)).toBe(true);
+  });
+
+  it("GET /api/chart/mentions/monthly returns grouped monthly mentions chart", async () => {
+    const year = new Date().getUTCFullYear();
+    const res = await request(app)
+      .get("/api/chart/mentions/monthly")
+      .query({ keyword: "Trump", year, sourceLimit: 5 });
+
+    expect(res.status).toBe(200);
+    expect(res.body.chartType).toBe("bar");
+    expect(Array.isArray(res.body.labels)).toBe(true);
+    expect(res.body.labels).toHaveLength(12);
+    expect(Array.isArray(res.body.datasets)).toBe(true);
+    expect(res.body.datasets.length).toBeGreaterThan(0);
+    expect(res.body.meta.keyword).toBe("Trump");
+    expect(res.body.meta.year).toBe(year);
+    expect(res.body.meta.totalMentions).toBeGreaterThan(0);
+  });
+
+  it("GET /api/chart/mentions/monthly.png returns image", async () => {
+    const year = new Date().getUTCFullYear();
+    const res = await request(app)
+      .get("/api/chart/mentions/monthly.png")
+      .query({ keyword: "Trump", year, sourceLimit: 5 });
+
+    expect(res.status).toBe(200);
+    expect(res.headers["content-type"]).toContain("image/png");
+    expect(res.body).toBeDefined();
   });
 
   it("GET /api/articles/:id/sentiment returns sentiment data", async () => {

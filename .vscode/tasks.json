@@ -1,0 +1,49 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Generate charts",
+			"type": "shell",
+			"command": "powershell",
+			"args": [
+				"-NoProfile",
+				"-Command",
+				"Set-Location services/data-retrieval; npm run charts:generate -- economy --input ../../data/clean-articles.json"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "Install retrieval deps",
+			"type": "shell",
+			"command": "powershell",
+			"args": [
+				"-NoProfile",
+				"-Command",
+				"Set-Location services/data-retrieval; npm install"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "Generate charts",
+			"type": "shell",
+			"command": "powershell",
+			"args": [
+				"-NoProfile",
+				"-Command",
+				"Set-Location services/data-retrieval; npm run charts:generate -- economy --input ../../data/clean-articles.json"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "Generate script charts",
+			"type": "shell",
+			"command": "powershell",
+			"args": [
+				"-NoProfile",
+				"-Command",
+				"Set-Location services/data-retrieval; npm run charts:generate -- trump --input ../../data/clean-articles.json --open"
+			],
+			"isBackground": false
+		}
+	]
+}

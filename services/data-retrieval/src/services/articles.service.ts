@@ -28,6 +28,42 @@ const TIMEFRAME_HOURS: Record<Timeframe, number> = {
 let _cachedArticles: any[] = [];
 let _cachedLoadedAt = 0;
 
+function parsePrecomputedCompound(article: any): number | null {
+  const candidates = [
+    article?.sentiment,
+    article?.sentimentScore,
+    article?.compound,
+    article?.sentimentCompound,
+  ];
+
+  for (const candidate of candidates) {
+    if (candidate === undefined || candidate === null || candidate === "") {
+      continue;
+    }
+
+    const parsed = Number(candidate);
+    if (!Number.isFinite(parsed)) {
+      continue;
+    }
+
+    return Math.min(Math.max(parsed, -1), 1);
+  }
+
+  return null;
+}
+
+function scoresFromCompound(compound: number) {
+  const magnitude = Math.min(Math.abs(compound), 1);
+  const roundedCompound = Number(compound.toFixed(4));
+
+  return {
+    compound: roundedCompound,
+    pos: compound > 0 ? Number(magnitude.toFixed(4)) : 0,
+    neg: compound < 0 ? Number(magnitude.toFixed(4)) : 0,
+    neu: Number((1 - magnitude).toFixed(4)),
+  };
+}
+
 function buildMatchHaystack(article: any): string {
   return [
     String(article.title || ""),
@@ -51,6 +87,28 @@ function parseLimit(raw?: string | null): number {
   const n = parseInt(raw, 10);
   if (Number.isNaN(n)) return 20;
   return Math.min(Math.max(n, 1), 100);
+}
+
+function resolveLocalFallbackPath(): string | null {
+  const configuredPath = String(process.env.NEWS_DATA_LOCAL_CLEAN_PATH || "").trim();
+  const candidates = [
+    configuredPath ? path.resolve(process.cwd(), configuredPath) : "",
+    // common working-directory locations
+    path.resolve(process.cwd(), "data/clean-articles.json"),
+    path.resolve(process.cwd(), "../../data/clean-articles.json"),
+    // source runtime: services/data-retrieval/src/services
+    path.resolve(__dirname, "../../../../data/clean-articles.json"),
+    // dist runtime: services/data-retrieval/dist/src/services
+    path.resolve(__dirname, "../../../../../data/clean-articles.json"),
+  ].filter(Boolean) as string[];
+
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) {
+      return candidate;
+    }
+  }
+
+  return candidates[0] || null;
 }
 
 function parseTimeframe(raw: string | undefined, fallback: Timeframe): Timeframe | null {
@@ -248,10 +306,11 @@ function getTrendingKeywords(articles: any[], limit: number) {
 }
 
 function loadLocalFallback(): any[] {
-  // try reading global data/clean-articles.json at repository root
-  // __dirname sits in services/data-retrieval/src/services when run via ts-node
-  // that means we need four ".." segments to reach the repository root.
-  const localPath = path.resolve(__dirname, "../../../../data/clean-articles.json");
+  const localPath = resolveLocalFallbackPath();
+  if (!localPath) {
+    return [];
+  }
+
   try {
     const txt = fs.readFileSync(localPath, "utf-8");
     const payload = JSON.parse(txt);
@@ -316,8 +375,13 @@ export async function searchArticles(keyword: string, sourceId?: string): Promis
 export async function computeSentimentForArticles(articles: any[]) {
   const scored: any[] = [];
   for (const article of articles) {
-    const text = String(article.sentimentText || article.body || article.title || "");
-    const scores = analyzer.polarity_scores(text);
+    const precomputed = parsePrecomputedCompound(article);
+    const scores =
+      precomputed !== null
+        ? scoresFromCompound(precomputed)
+        : analyzer.polarity_scores(
+            String(article.sentimentText || article.body || article.title || "")
+          );
     scored.push({ article, scores });
   }
   return scored;
