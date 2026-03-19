@@ -1,13 +1,13 @@
 # news-sentiment-analyser
 
-Reshuffled MVP for two modes:
+MVP for two modes:
 
 1. local ingest to collect and preprocess general news data, then upload it to S3
 2. runtime keyword search and VADER sentiment ranking through a Lambda-style API
 
 ## Current architecture
 
-### Local ingest pipeline
+### Data Ingestion (collection and preprocessing)
 
 Location: [services/data-collection](services/data-collection)
 
@@ -32,7 +32,7 @@ Optional collection API remains available for testing:
 - `GET /api/articles/raw?sourceId=guardian&limit=10`
 - `POST /api/collect`
 
-### Runtime API Lambda (now data retrieval service)
+### Data Retrieval Service
 
 Location: [services/data-retrieval](services/data-retrieval)
 
@@ -52,14 +52,6 @@ Expected query parameters:
 - `keyword` required
 - `sourceId` optional
 - `limit` optional article preview count
-
-### Frontend
-
-Location: [frontend](frontend)
-
-- simple static UI
-- accepts the runtime API URL and a keyword
-- renders outlet rankings and matching article previews
 
 ## Data model
 
