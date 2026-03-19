@@ -1,0 +1,146 @@
+﻿{
+    "chartType":  "bar",
+    "labels":  [
+                   "Jan",
+                   "Feb",
+                   "Mar",
+                   "Apr",
+                   "May",
+                   "Jun",
+                   "Jul",
+                   "Aug",
+                   "Sep",
+                   "Oct",
+                   "Nov",
+                   "Dec"
+               ],
+    "datasets":  [
+                     {
+                         "label":  "The Guardian",
+                         "data":  [
+                                      0,
+                                      0,
+                                      83,
+                                      0,
+                                      0,
+                                      0,
+                                      0,
+                                      0,
+                                      0,
+                                      0,
+                                      0,
+                                      0
+                                  ],
+                         "backgroundColor":  "#1f77b4",
+                         "borderColor":  "#1f2937",
+                         "borderWidth":  1
+                     },
+                     {
+                         "label":  "Time",
+                         "data":  [
+                                      0,
+                                      0,
+                                      23,
+                                      0,
+                                      0,
+                                      0,
+                                      0,
+                                      0,
+                                      0,
+                                      0,
+                                      0,
+                                      0
+                                  ],
+                         "backgroundColor":  "#ff7f0e",
+                         "borderColor":  "#1f2937",
+                         "borderWidth":  1
+                     },
+                     {
+                         "label":  "BBC News",
+                         "data":  [
+                                      0,
+                                      0,
+                                      16,
+                                      0,
+                                      0,
+                                      0,
+                                      0,
+                                      0,
+                                      0,
+                                      0,
+                                      0,
+                                      0
+                                  ],
+                         "backgroundColor":  "#2ca02c",
+                         "borderColor":  "#1f2937",
+                         "borderWidth":  1
+                     },
+                     {
+                         "label":  "New York Times - Most Popular",
+                         "data":  [
+                                      0,
+                                      0,
+                                      15,
+                                      0,
+                                      0,
+                                      0,
+                                      0,
+                                      0,
+                                      0,
+                                      0,
+                                      0,
+                                      0
+                                  ],
+                         "backgroundColor":  "#d62728",
+                         "borderColor":  "#1f2937",
+                         "borderWidth":  1
+                     },
+                     {
+                         "label":  "The Guardian Australia",
+                         "data":  [
+                                      0,
+                                      0,
+                                      14,
+                                      0,
+                                      0,
+                                      0,
+                                      0,
+                                      0,
+                                      0,
+                                      0,
+                                      0,
+                                      0
+                                  ],
+                         "backgroundColor":  "#9467bd",
+                         "borderColor":  "#1f2937",
+                         "borderWidth":  1
+                     },
+                     {
+                         "label":  "New York Times",
+                         "data":  [
+                                      0,
+                                      0,
+                                      13,
+                                      0,
+                                      0,
+                                      0,
+                                      0,
+                                      0,
+                                      0,
+                                      0,
+                                      0,
+                                      0
+                                  ],
+                         "backgroundColor":  "#8c564b",
+                         "borderColor":  "#1f2937",
+                         "borderWidth":  1
+                     }
+                 ],
+    "meta":  {
+                 "keyword":  "trump",
+                 "year":  2026,
+                 "sourceLimit":  6,
+                 "sourcesCompared":  6,
+                 "totalMentions":  164
+             }
+}
