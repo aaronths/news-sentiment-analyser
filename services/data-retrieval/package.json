@@ -4,6 +4,7 @@
     "prod": "npm run build && cross-env NODE_ENV=production NEWS_DATA_STORAGE_MODE=s3 node dist/src/main.js",
     "build": "tsc",
     "charts:generate": "npm run build --silent && node dist/src/scripts/generate-charts.js",
+    "charts:run": "node run-charts.js",
     "start": "node dist/main.js",
     "test": "jest",
     "lint": "eslint \"src/**/*.{ts,tsx}\" \"tests/**/*.ts\"",
