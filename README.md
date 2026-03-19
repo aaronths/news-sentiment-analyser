@@ -53,6 +53,34 @@ Expected query parameters:
 - `sourceId` optional
 - `limit` optional article preview count
 
+### Chart generation
+
+Location: [services/data-retrieval](services/data-retrieval)
+
+- uses [services/data-retrieval/run-charts.js](services/data-retrieval/run-charts.js) for repeatable chart generation
+- writes PNG and JSON outputs to [services/data-retrieval/chart-output](services/data-retrieval/chart-output)
+- can run against local clean data or the configured S3 clean object
+
+Commands:
+
+- `cd services/data-retrieval && npm run charts:run`
+- `cd services/data-retrieval && node run-charts.js`
+- `cd services/data-retrieval && npm run charts:run -- trump --mode local --input ../../data/clean-articles.json`
+
+Notes:
+
+- edit the config block at the top of [services/data-retrieval/run-charts.js](services/data-retrieval/run-charts.js) to change the default keyword, year, timeframe, dimensions, or output toggles
+- use `dataSourceMode = "local"` when you want the runner to use your local [data/clean-articles.json](data/clean-articles.json) edits directly
+- use `dataSourceMode = "s3"` when you want the runner to use the configured S3 bucket and clean key
+
+### Frontend
+
+Location: [frontend](frontend)
+
+- simple static UI
+- accepts the runtime API URL and a keyword
+- renders outlet rankings and matching article previews
+
 ## Data model
 
 The clean article schema includes:
