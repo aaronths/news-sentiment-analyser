@@ -1,8 +1,12 @@
 import { promises as fs } from "fs";
 import path from "path";
+import http from "http";
+import https from "https";
+import { Readable } from "stream";
 
 import { loadEnvironment } from "../src/config/load-environment";
 import { isPlaceholderSecret, isSourceConfigured, NEWS_SOURCES } from "../src/config/news-sources";
+import { NewsSourceConfig, RawArticle } from "../src/types/article";
 import { toCleanArticle, preprocessArticles } from "../src/services/preprocess.service";
 import {
   appendRawArticles,
@@ -17,7 +21,7 @@ import { runIngestionPipeline } from "../src/services/ingestion-pipeline.service
 const getDataDir = () => path.dirname(getRawArticlesPath());
 const ingestSummaryPath = path.join(getDataDir(), "ingest-summary.json");
 
-const makeRawArticle = (id: string): any => ({
+const makeRawArticle = (id: string): RawArticle => ({
   id,
   sourceId: "test-source",
   sourceName: "Test Source",
@@ -294,18 +298,17 @@ describe("utils and services", () => {
   });
 
   describe("collectArticlesFromSources (mocked HTTP)", () => {
-    const http = require("http");
-    const https = require("https");
     const originalBbcUrl = NEWS_SOURCES.find((s) => s.id === "bbc")?.rssUrl;
 
     beforeEach(() => {
-      jest.spyOn(http, "get").mockImplementation((url: any, opts: any, cb: any) => {
-        if (typeof opts === "function") {
-          cb = opts;
-          opts = {};
-        }
+      jest.spyOn(http, "get").mockImplementation(
+        (url: string | URL, opts: Record<string, unknown> | ((res: unknown) => void), cb?: (res: unknown) => void) => {
+          if (typeof opts === "function") {
+            cb = opts;
+            opts = {};
+          }
 
-        const urlString = typeof url === "string" ? url : url.href;
+          const urlString = typeof url === "string" ? url : url.href;
 
         let statusCode = 200;
         let headers: Record<string, string> = {};
@@ -338,7 +341,7 @@ describe("utils and services", () => {
           body = "{}";
         }
 
-        const stream = new (require("stream").Readable)();
+        const stream = new Readable() as Readable & { statusCode?: number; headers?: Record<string, string> };
         stream._read = () => {};
         stream.statusCode = statusCode;
         stream.headers = headers;
@@ -354,7 +357,7 @@ describe("utils and services", () => {
         return { on: jest.fn() };
       });
 
-      jest.spyOn(https, "get").mockImplementation((http.get as any) as any);
+      jest.spyOn(https, "get").mockImplementation(http.get as unknown as typeof https.get);
 
       const bbc = NEWS_SOURCES.find((s) => s.id === "bbc");
       if (bbc) {
@@ -372,50 +375,50 @@ describe("utils and services", () => {
     });
 
     it("collects from multiple providers and hits live code paths", async () => {
-      const guardianSource = {
+      const guardianSource: NewsSourceConfig = {
         id: "guardian-test",
         name: "Guardian Test",
         provider: "guardian-search",
         baseUrl: "https://content.guardianapis.com",
         apiKey: "test-key",
-      } as const;
+      };
 
-      const genericSource = {
+      const genericSource: NewsSourceConfig = {
         id: "generic-test",
         name: "Generic Test",
         provider: "generic-query",
         baseUrl: "https://example.com",
         apiUrl: "https://example.com/generic",
         apiKey: "test-key",
-      } as const;
+      };
 
-      const nytTopSource = {
+      const nytTopSource: NewsSourceConfig = {
         id: "nyt-top",
         name: "NYT Top",
         provider: "nyt-top-stories",
         baseUrl: "https://api.nytimes.com",
         apiUrl: "https://api.nytimes.com/svc/topstories/v2/home.json",
         apiKey: "test-key",
-      } as const;
+      };
 
-      const nytPopularSource = {
+      const nytPopularSource: NewsSourceConfig = {
         id: "nyt-popular",
         name: "NYT Popular",
         provider: "nyt-most-popular",
         baseUrl: "https://api.nytimes.com",
         apiUrl: "https://api.nytimes.com/svc/mostpopular/v2/viewed/1.json",
         apiKey: "test-key",
-      } as const;
+      };
 
-      const rssSource = {
+      const rssSource: NewsSourceConfig = {
         id: "rss-test",
         name: "RSS Test",
         provider: "rss-feed",
         baseUrl: "https://example.com",
         rssUrl: "http://example.com/rss-test",
-      } as const;
+      };
 
-      NEWS_SOURCES.push(guardianSource as any, genericSource as any, nytTopSource as any, nytPopularSource as any, rssSource as any);
+      NEWS_SOURCES.push(guardianSource, genericSource, nytTopSource, nytPopularSource, rssSource);
 
       const { articles, sourceBreakdown } = await import("../src/services/source-clients").then((m) =>
         m.collectArticlesFromSources({
