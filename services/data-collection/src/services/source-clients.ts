@@ -1,3 +1,4 @@
+import http from "http";
 import https from "https";
 import { URL } from "url";
 import { XMLParser } from "fast-xml-parser";
@@ -279,48 +280,41 @@ const clampPerSource = (perSource: number | undefined) => {
   return Math.min(Math.max(Math.trunc(perSource), 1), 300);
 };
 
-const fetchJson = <T>(url: URL, headers: Record<string, string> = {}): Promise<T> => {
+const fetchText = (
+  url: URL,
+  headers: Record<string, string> = {},
+  redirectCount = 0,
+): Promise<string> => {
   return new Promise((resolve, reject) => {
-    const request = https.get(url, { headers }, (response) => {
-      const chunks: Buffer[] = [];
+    const mergedHeaders = {
+      "User-Agent":
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
+      ...headers,
+    };
 
+    const transport = url.protocol === "http:" ? http : https;
+    const request = transport.get(url, { headers: mergedHeaders }, (response) => {
+      const { statusCode = 0, headers: responseHeaders } = response;
+
+      // Follow redirects (301/302/303/307/308)
+      if (
+        statusCode >= 300 &&
+        statusCode < 400 &&
+        responseHeaders.location &&
+        redirectCount < 5
+      ) {
+        const nextUrl = new URL(responseHeaders.location, url);
+        resolve(fetchText(nextUrl, headers, redirectCount + 1));
+        return;
+      }
+
+      const chunks: Buffer[] = [];
       response.on("data", (chunk: Buffer) => {
         chunks.push(chunk);
       });
 
       response.on("end", () => {
         const body = Buffer.concat(chunks).toString("utf-8");
-        const statusCode = response.statusCode ?? 500;
-
-        if (statusCode >= 400) {
-          reject(new Error(`Request failed with status ${statusCode}: ${body}`));
-          return;
-        }
-
-        try {
-          resolve(JSON.parse(body) as T);
-        } catch (error) {
-          reject(error);
-        }
-      });
-    });
-
-    request.on("error", reject);
-  });
-};
-
-const fetchText = (url: URL, headers: Record<string, string> = {}): Promise<string> => {
-  return new Promise((resolve, reject) => {
-    const request = https.get(url, { headers }, (response) => {
-      const chunks: Buffer[] = [];
-
-      response.on("data", (chunk: Buffer) => {
-        chunks.push(chunk);
-      });
-
-      response.on("end", () => {
-        const body = Buffer.concat(chunks).toString("utf-8");
-        const statusCode = response.statusCode ?? 500;
 
         if (statusCode >= 400) {
           reject(new Error(`Request failed with status ${statusCode}: ${body}`));
@@ -333,6 +327,11 @@ const fetchText = (url: URL, headers: Record<string, string> = {}): Promise<stri
 
     request.on("error", reject);
   });
+};
+
+const fetchJson = async <T>(url: URL, headers: Record<string, string> = {}): Promise<T> => {
+  const body = await fetchText(url, headers);
+  return JSON.parse(body) as T;
 };
 
 const parser = new XMLParser({
