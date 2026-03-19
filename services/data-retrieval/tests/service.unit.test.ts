@@ -115,9 +115,12 @@ describe("articles.service helpers and storage behavior", () => {
     const { loadCleanArticles } = await import("../src/services/articles.service");
     const { S3Client } = await import("@aws-sdk/client-s3");
 
-    const sendSpy = jest
-      .spyOn(S3Client.prototype as any, "send")
-      .mockResolvedValue({ Body: Readable.from([JSON.stringify(sampleArticles)]) });
+    // Jest's spy typing often resolves to `never` for overloaded methods; cast to a general SpyInstance.
+    // `spyOn` typing can be too strict for overloaded methods like S3Client.send.
+    const sendSpy = (jest
+      .spyOn(S3Client.prototype as unknown as { send: (...args: unknown[]) => Promise<unknown> }, "send")
+      .mockResolvedValue({ Body: Readable.from([JSON.stringify(sampleArticles)]) })
+    ) as unknown as ReturnType<typeof jest.spyOn>;
 
     const data = await loadCleanArticles();
     expect(data.length).toBe(2);
@@ -134,9 +137,10 @@ describe("articles.service helpers and storage behavior", () => {
     const { loadCleanArticles } = await import("../src/services/articles.service");
     const { S3Client } = await import("@aws-sdk/client-s3");
 
-    const sendSpy = jest
-      .spyOn(S3Client.prototype as any, "send")
-      .mockRejectedValue(new Error("network failure"));
+    const sendSpy = (jest
+      .spyOn(S3Client.prototype as unknown as { send: (...args: unknown[]) => Promise<unknown> }, "send")
+      .mockRejectedValue(new Error("network failure"))
+    ) as unknown as ReturnType<typeof jest.spyOn>;
 
     const data = await loadCleanArticles();
     expect(data.length).toBe(2);
@@ -236,7 +240,9 @@ describe("charts.service helpers", () => {
     const config = await buildRankingsChartConfig("whatever");
 
     expect(config.data.datasets[0].data).toEqual([]);
-    expect((config.options?.plugins as any).datalabels).toEqual({ display: false });
+    type ChartPlugins = { datalabels?: { display: boolean } };
+    const plugins = config.options?.plugins as ChartPlugins | undefined;
+    expect(plugins?.datalabels).toEqual({ display: false });
   });
 
   it("renderChartToPng produces a non-empty buffer", async () => {

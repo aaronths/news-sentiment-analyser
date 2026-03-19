@@ -302,10 +302,14 @@ describe("utils and services", () => {
 
     beforeEach(() => {
       jest.spyOn(http, "get").mockImplementation(
-        (url: string | URL, opts: Record<string, unknown> | ((res: unknown) => void), cb?: (res: unknown) => void) => {
-          if (typeof opts === "function") {
-            cb = opts;
-            opts = {};
+        ((
+          url: string | URL,
+          options?: http.RequestOptions | ((res: http.IncomingMessage) => void),
+          cb?: (res: http.IncomingMessage) => void,
+        ) => {
+          if (typeof options === "function") {
+            cb = options;
+            options = {};
           }
 
           const urlString = typeof url === "string" ? url : url.href;
@@ -353,9 +357,9 @@ describe("utils and services", () => {
           stream.emit("end");
         });
 
-        cb(stream);
-        return { on: jest.fn() };
-      });
+        cb?.(stream as unknown as http.IncomingMessage);
+        return { on: jest.fn() } as unknown as http.ClientRequest;
+      }) as unknown as typeof http.get);
 
       jest.spyOn(https, "get").mockImplementation(http.get as unknown as typeof https.get);
 
