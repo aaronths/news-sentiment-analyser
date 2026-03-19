@@ -3,6 +3,7 @@
     "dev": "ts-node-dev src/main.ts",
     "build": "tsc",
     "charts:generate": "npm run build --silent && node dist/src/scripts/generate-charts.js",
+    "charts:run": "node run-charts.js",
     "start": "node dist/main.js",
     "test": "jest",
     "lint": "eslint \"src/**/*.{ts,tsx}\" \"tests/**/*.ts\"",
