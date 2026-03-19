@@ -18,5 +18,5 @@ __pycache__/
 *.pyc
 
 # Local data
-# data/
+data/
 *.log

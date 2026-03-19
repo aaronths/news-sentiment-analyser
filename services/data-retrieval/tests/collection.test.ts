@@ -1,7 +1,8 @@
 import fs from "fs";
 import path from "path";
 import request from "supertest";
-import { describe, it, expect, afterAll, beforeAll } from "@jest/globals";
+import { describe, it, expect, afterAll, beforeAll, jest } from "@jest/globals";
+import { S3Client } from "@aws-sdk/client-s3";
 import { app, server } from "../src/main";
 
 // ensure the HTTP server is closed after tests
@@ -93,6 +94,25 @@ describe("GET /api/test", () => {
     const res = await request(app).get("/api/test");
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
+  });
+});
+
+describe("Storage mode environment", () => {
+  it("should use local file when NEWS_DATA_STORAGE_MODE=local-file even if bucket is set", async () => {
+    process.env.NEWS_DATA_STORAGE_MODE = "local-file";
+    process.env.NEWS_DATA_BUCKET = "some-bucket";
+
+    const sendSpy = jest.spyOn(S3Client.prototype, "send");
+
+    // Reload module to ensure cache is cleared and storage mode is evaluated fresh
+    jest.resetModules();
+    const { loadCleanArticles } = await import("../src/services/articles.service");
+
+    const articles = await loadCleanArticles();
+    expect(Array.isArray(articles)).toBe(true);
+    expect(sendSpy).not.toHaveBeenCalled();
+
+    sendSpy.mockRestore();
   });
 });
 
@@ -188,6 +208,26 @@ describe("Swagger endpoints", () => {
     expect(res.body).toBeDefined();
   });
 
+  it("GET /api/charts/rankings returns 400 without keyword", async () => {
+    const res = await request(app).get("/api/charts/rankings");
+    expect(res.status).toBe(400);
+  });
+
+  it("GET /api/charts/distribution returns 400 without keyword", async () => {
+    const res = await request(app).get("/api/charts/distribution");
+    expect(res.status).toBe(400);
+  });
+
+  it("GET /api/charts/rankings.png returns 400 without keyword", async () => {
+    const res = await request(app).get("/api/charts/rankings.png");
+    expect(res.status).toBe(400);
+  });
+
+  it("GET /api/charts/distribution.png returns 400 without keyword", async () => {
+    const res = await request(app).get("/api/charts/distribution.png");
+    expect(res.status).toBe(400);
+  });
+
   it("GET /api/sources returns indexed source list", async () => {
     const res = await request(app).get("/api/sources").query({ limit: 5 });
     expect(res.status).toBe(200);
@@ -271,6 +311,24 @@ describe("Swagger endpoints", () => {
     expect(res.status).toBe(200);
     expect(res.headers["content-type"]).toContain("image/png");
     expect(res.body).toBeDefined();
+  });
+
+  it("GET /api/chart/mentions/monthly returns 400 when year is invalid", async () => {
+    const res = await request(app)
+      .get("/api/chart/mentions/monthly")
+      .query({ keyword: "Trump", year: "not-a-year", sourceLimit: 5 });
+
+    expect(res.status).toBe(400);
+  });
+
+  it("GET /api/chart/mentions/monthly works with multi-word keyword", async () => {
+    const year = new Date().getUTCFullYear();
+    const res = await request(app)
+      .get("/api/chart/mentions/monthly")
+      .query({ keyword: "Trump rally", year, sourceLimit: 5 });
+
+    expect(res.status).toBe(200);
+    expect(res.body.chartType).toBe("bar");
   });
 
   it("GET /api/articles/:id/sentiment returns sentiment data", async () => {

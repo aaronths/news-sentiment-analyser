@@ -9,6 +9,11 @@ import vader from "vader-sentiment";
 const analyzer = vader.SentimentIntensityAnalyzer;
 const CACHE_TTL_SECONDS = parseInt(process.env.RUNTIME_CACHE_TTL_SECONDS || "300", 10);
 
+function getStorageMode(): "local-file" | "s3" {
+  const raw = process.env.NEWS_DATA_STORAGE_MODE?.trim().toLowerCase();
+  return raw === "s3" ? "s3" : "local-file";
+}
+
 export type Timeframe = "24h" | "7d" | "30d";
 
 interface SourceSummary {
@@ -326,10 +331,13 @@ async function loadCleanArticles(): Promise<any[]> {
     return _cachedArticles;
   }
 
+  const storageMode = getStorageMode();
   const bucket = (process.env.NEWS_DATA_BUCKET || "").trim();
   const key = (process.env.NEWS_DATA_CLEAN_KEY || "clean/clean-articles.json").trim();
 
-  if (!bucket) {
+  // When running in local dev mode, prefer the local file regardless of bucket configuration.
+  // When in "s3" mode, only use S3 if the bucket is set.
+  if (storageMode !== "s3" || !bucket) {
     _cachedArticles = loadLocalFallback();
     _cachedLoadedAt = now;
     return _cachedArticles;
