@@ -103,7 +103,15 @@ describe("utils and services", () => {
     let summaryBackup: string | null;
 
     beforeAll(async () => {
-      rawBackup = await fs.readFile(getRawArticlesPath(), "utf-8");
+      await fs.mkdir(getDataDir(), { recursive: true });
+
+      try {
+        rawBackup = await fs.readFile(getRawArticlesPath(), "utf-8");
+      } catch {
+        rawBackup = "[]\n";
+        await fs.writeFile(getRawArticlesPath(), rawBackup, "utf-8");
+      }
+
       summaryBackup = await fs.readFile(ingestSummaryPath, "utf-8").catch(() => null);
     });
 
@@ -144,6 +152,7 @@ describe("utils and services", () => {
     it("returns mock results when not in s3 mode", async () => {
       process.env.NEWS_DATA_STORAGE_MODE = "local-file";
 
+      await fs.mkdir(getDataDir(), { recursive: true });
       const tmpFile = path.join(getDataDir(), "tmp-test-file.txt");
       await fs.writeFile(tmpFile, "hello", "utf-8");
 
@@ -164,6 +173,7 @@ describe("utils and services", () => {
       process.env.NEWS_DATA_STORAGE_MODE = "s3";
       process.env.NEWS_DATA_BUCKET = "your-news-data-bucket";
 
+      await fs.mkdir(getDataDir(), { recursive: true });
       const tmpFile = path.join(getDataDir(), "tmp-test-file.txt");
       await fs.writeFile(tmpFile, "hello", "utf-8");
 
