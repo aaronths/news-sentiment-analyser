@@ -73,13 +73,6 @@ Notes:
 - use `dataSourceMode = "local"` when you want the runner to use your local [data/clean-articles.json](data/clean-articles.json) edits directly
 - use `dataSourceMode = "s3"` when you want the runner to use the configured S3 bucket and clean key
 
-### Frontend
-
-Location: [frontend](frontend)
-
-- simple static UI
-- accepts the runtime API URL and a keyword
-- renders outlet rankings and matching article previews
 
 ## Data model
 
@@ -117,55 +110,92 @@ Important values:
 - `NEWS_DATA_RAW_KEY`
 - `NEWS_DATA_CLEAN_KEY`
 
-## Local ingest flow
+## Running data collection (ingest)
 
-Install dependencies:
+The data-collection service supports two modes:
 
-- `cd services/data-collection && npm install`
+- **local-file** (default / dev): writes data to `data/raw-articles.json` and `data/clean-articles.json`
+- **s3** (prod): writes both files to S3 using the configured bucket/key
 
-Run ingestion:
+### Install
 
-- `cd services/data-collection && npm run ingest`
+```bash
+cd services/data-collection
+npm install
+```
 
-You can override ingestion behavior using CLI flags (recommended) or env vars as a fallback. Examples:
+### Run in dev (local-file mode)
 
-- Run with a custom per-source article limit:
-  - `npm run ingest -- --perSource=150`
+```bash
+cd services/data-collection
+npm run dev
+```
 
-- Run only a subset of sources:
-  - `npm run ingest -- --sourceIds=bbc,abc` (comma-separated IDs)
+This runs the ingestion pipeline with:
+- `NEWS_DATA_STORAGE_MODE=local-file`
+- `INGEST_INTERVAL_MS` and other `.env` values govern run frequency
 
-- Fetch more pages (where supported):
-  - `npm run ingest -- --pages=3`
+### Run in prod (S3 mode)
 
-- **Backfill mode** (larger defaults to try to fetch deeper history where pagination is available):
-  - `npm run ingest -- --backfill`
+```bash
+cd services/data-collection
+npm run prod
+```
 
-You can still run continuously by setting:
+This runs the ingestion pipeline with:
+- `NEWS_DATA_STORAGE_MODE=s3`
+- `NEWS_DATA_BUCKET` (required)
 
-- `INGEST_INTERVAL_MS` (e.g. `60000` to re-run every minute)
-- `INGEST_MAX_ITERATIONS` (optional, stops after N runs)
+### Optional ingest flags (use with `npm run ingest -- ...`)
 
-Result:
+- **`--perSource`**: limit articles per source
+- **`--sourceIds`**: comma-separated list of source IDs to run
+- **`--pages`**: fetch additional pages when supported
+- **`--backfill`**: larger default limits to pull deeper history
 
-- local files are refreshed
-- mock storage writes to local files by default
-- S3 upload runs only if storage mode is switched to `s3`
+### Environment variables (some key ones)
 
-## Runtime Lambda flow
+- `NEWS_DATA_STORAGE_MODE` - `local-file` or `s3`
+- `NEWS_DATA_BUCKET` - s3 bucket name (required in s3 mode)
+- `INGEST_INTERVAL_MS` - milliseconds between automatic runs (omit to run once)
+- `INGEST_MAX_ITERATIONS` - stop after N runs when using `INGEST_INTERVAL_MS`
 
-Install Python dependencies (legacy):
+---
 
-- `cd services/runtime-api && python -m pip install -r requirements.txt`
+## Running data retrieval (runtime API)
 
-Install Node dependencies for the new data‑retrieval service:
+### Install
 
-- `cd services/data-retrieval && npm install`
-Deploy `handler.lambda_handler` behind Lambda Function URL or API Gateway.
+```bash
+cd services/data-retrieval
+npm install
+```
+
+### Run in dev (local-file mode)
+
+```bash
+cd services/data-retrieval
+npm run dev
+```
+
+This runs the service with `NEWS_DATA_STORAGE_MODE=local-file` and reads `data/clean-articles.json`.
+
+### Run in prod (S3 mode)
+
+```bash
+cd services/data-retrieval
+npm run prod
+```
+
+This runs the service with `NEWS_DATA_STORAGE_MODE=s3` and expects:
+- `NEWS_DATA_BUCKET` set
+- `NEWS_DATA_CLEAN_KEY` pointing to the clean JSON object (default: `clean/clean-articles.json`)
+
+### Runtime API usage
 
 Example request:
 
-- `GET /?keyword=election&limit=10`
+- `GET /api/articles?keyword=election&limit=10`
 
 Response includes:
 
@@ -173,6 +203,10 @@ Response includes:
 - `totalMatches`
 - `rankings`
 - `articles`
+
+### Lambda deployment
+
+The `handler` is exported from `services/data-retrieval/src/main.ts`. You can deploy it behind Lambda Function URL or API Gateway.
 
 ## Frontend flow
 
