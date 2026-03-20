@@ -33,7 +33,14 @@ app.use("/api", retrievalRouter);
 
 // Set up Swagger UI for API documentation
 const swaggerDocument = YAML.load(swaggerPath);
-app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
+const swaggerUiOptions = {
+  customCssUrl: 'https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/4.15.5/swagger-ui.min.css',
+  customJs: [
+    'https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/4.15.5/swagger-ui-bundle.js',
+    'https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/4.15.5/swagger-ui-standalone-preset.js'
+  ]
+};
+app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument, swaggerUiOptions));
 
 // --- THE LAMBDA HANDLER ---
 export const handler = serverless(app);
@@ -45,3 +52,6 @@ export const server = (!process.env.AWS_EXECUTION_ENV && shouldListen)
       console.log(`Data Retrieval service running on port ${PORT}`);
     })
   : null;
+
+
+  
