@@ -47,7 +47,7 @@ export const NEWS_SOURCES: NewsSourceConfig[] = [
     provider: "rss-feed",
     baseUrl: "https://www.reuters.com",
     rssUrlEnvVar: "REUTERS_RSS_URL",
-    rssUrl: process.env.REUTERS_RSS_URL ?? "https://feeds.reuters.com/reuters/topNews",
+    rssUrl: process.env.REUTERS_RSS_URL ?? "https://news.google.com/search?q=site%3Areuters.com&hl=en-US&gl=US&ceid=US%3Aen",
     rssUrlFallbacks: [
       "https://www.reuters.com/rssFeed/topNews",
       "https://www.reuters.com/rssFeed/worldNews",
@@ -62,14 +62,14 @@ export const NEWS_SOURCES: NewsSourceConfig[] = [
     rssUrlEnvVar: "ABC_NEWS_RSS_URL",
     rssUrl: process.env.ABC_NEWS_RSS_URL ?? "https://www.abc.net.au/news/feed/51120/rss.xml",
   },
-  {
-    id: "sbs",
-    name: "SBS News",
-    provider: "rss-feed",
-    baseUrl: "https://www.sbs.com.au",
-    rssUrlEnvVar: "SBS_NEWS_RSS_URL",
-    rssUrl: process.env.SBS_NEWS_RSS_URL ?? "https://www.sbs.com.au/news/podcastfeeds/news.rss",
-  },
+  // {
+  //   id: "sbs",
+  //   name: "SBS News",
+  //   provider: "rss-feed",
+  //   baseUrl: "https://www.sbs.com.au",
+  //   rssUrlEnvVar: "SBS_NEWS_RSS_URL",
+  //   rssUrl: process.env.SBS_NEWS_RSS_URL ?? "https://www.sbs.com.au/news/feed",
+  // },
   {
     id: "cnn",
     name: "CNN",
@@ -391,7 +391,7 @@ export const NEWS_SOURCES: NewsSourceConfig[] = [
     provider: "rss-feed",
     baseUrl: "https://www.bloomberg.com",
     rssUrlEnvVar: "BLOOMBERG_RSS_URL",
-    rssUrl: process.env.BLOOMBERG_RSS_URL ?? "https://www.bloomberg.com/feed/podcast/etf-report.xml",
+    rssUrl: process.env.BLOOMBERG_RSS_URL ?? "https://feeds.bloomberg.com/markets/news.rss",
   },
   {
     id: "lemonde",
@@ -415,7 +415,7 @@ export const NEWS_SOURCES: NewsSourceConfig[] = [
     provider: "rss-feed",
     baseUrl: "https://elpais.com",
     rssUrlEnvVar: "ELPAIS_RSS_URL",
-    rssUrl: process.env.ELPAIS_RSS_URL ?? "https://feeds.elpais.com/mrss-s/pages/ep/site/elpais.com/portada",
+    rssUrl: process.env.ELPAIS_RSS_URL ?? "https://feeds.elpais.com/mrss-s/pages/ep/site/english.elpais.com/portada",
   },
   {
     id: "scmp",
@@ -423,7 +423,7 @@ export const NEWS_SOURCES: NewsSourceConfig[] = [
     provider: "rss-feed",
     baseUrl: "https://www.scmp.com",
     rssUrlEnvVar: "SCMP_RSS_URL",
-    rssUrl: process.env.SCMP_RSS_URL ?? "https://www.scmp.com/rss/asia-briefing-news/rss.xml",
+    rssUrl: process.env.SCMP_RSS_URL ?? "https://www.scmp.com/rss/91/feed/",
   },
   {
     id: "dw",
