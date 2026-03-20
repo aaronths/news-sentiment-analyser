@@ -9,6 +9,8 @@ servers:
     description: Local development server
   - url: https://mbqiv0owad.execute-api.us-east-1.amazonaws.com/dev
     description: AWS API Gateway (Dev environment)
+  - url: https://mbqiv0owad.execute-api.us-east-1.amazonaws.com/prod
+    description: PRODUCTION AWS API Gateway (PRODUCTION environment)
 
 security:
   - ApiKeyAuth: []
