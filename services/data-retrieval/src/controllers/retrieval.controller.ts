@@ -16,9 +16,6 @@ import {
   Timeframe,
   parsePaginationParams,
   createPaginatedResult,
-  Article,
-  SourceSummary,
-  PaginatedResult,
 } from "../services/articles.service";
 import { parseChartDimension, renderChartToPng } from "../services/charts.service";
 
@@ -50,7 +47,7 @@ const CHART_COLORS = [
   "#17becf",
 ];
 
-function validateRequiredString(value: any, fieldName: string): string {
+function validateRequiredString(value: unknown, fieldName: string): string {
   const str = String(value || "").trim();
   if (!str) {
     throw new Error(`${fieldName} is required`);
@@ -58,7 +55,7 @@ function validateRequiredString(value: any, fieldName: string): string {
   return str;
 }
 
-function validateOptionalString(value: any): string | undefined {
+function validateOptionalString(value: unknown): string | undefined {
   const str = String(value || "").trim();
   return str || undefined;
 }
@@ -71,7 +68,7 @@ function handleNotFound(res: Response, message: string): void {
   res.status(404).json({ code: 404, message });
 }
 
-function handleSuccess(res: Response, data: any, statusCode = 200): void {
+function handleSuccess(res: Response, data: unknown, statusCode = 200): void {
   res.status(statusCode).json(data);
 }
 
@@ -874,7 +871,6 @@ export const revokeApiKey = async (req: Request, res: Response) => {
     }
 
     record.status = "revoked";
-    const revokedAt = new Date().toISOString();
     handleNoContent(res);
   } catch (error) {
     if (error instanceof Error) {

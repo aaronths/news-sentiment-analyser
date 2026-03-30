@@ -17,10 +17,22 @@ const ensureStorage = async () => {
 
 export const readRawArticles = async (): Promise<RawArticle[]> => {
   await ensureStorage();
-  const fileContents = await fs.readFile(RAW_ARTICLES_PATH, "utf-8");
-  const parsed: unknown = JSON.parse(fileContents);
-
-  return Array.isArray(parsed) ? (parsed as RawArticle[]) : [];
+  try {
+    const fileContents = await fs.readFile(RAW_ARTICLES_PATH, "utf-8");
+    
+    // Handle empty file case
+    if (!fileContents.trim()) {
+      return [];
+    }
+    
+    const parsed: unknown = JSON.parse(fileContents);
+    return Array.isArray(parsed) ? (parsed as RawArticle[]) : [];
+  } catch (error) {
+    console.error("Error reading raw articles:", error);
+    // If JSON parsing fails, return empty array and reset file
+    await fs.writeFile(RAW_ARTICLES_PATH, "[]\n", "utf-8");
+    return [];
+  }
 };
 
 export const appendRawArticles = async (articles: RawArticle[]) => {
