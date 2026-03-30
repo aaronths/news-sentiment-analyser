@@ -14,9 +14,37 @@ function getStorageMode(): "local-file" | "s3" {
   return raw === "s3" ? "s3" : "local-file";
 }
 
-export type Timeframe = "24h" | "7d" | "30d";
+export interface Article {
+  id: string | number;
+  title: string;
+  body?: string;
+  summary?: string;
+  author?: string;
+  url?: string;
+  sourceId: string;
+  sourceName: string;
+  publishedAt: string;
+  sentiment?: number;
+  sentimentScore?: number;
+  compound?: number;
+  sentimentCompound?: number;
+  sentimentText?: string;
+  keywordTokens?: string[];
+}
 
-interface SourceSummary {
+export interface SentimentScores {
+  compound: number;
+  pos: number;
+  neg: number;
+  neu: number;
+}
+
+export interface ArticleWithSentiment {
+  article: Article;
+  scores: SentimentScores;
+}
+
+export interface SourceSummary {
   id: string;
   name: string;
   url: string;
@@ -24,17 +52,42 @@ interface SourceSummary {
   latestPublishedAt: string;
 }
 
+export interface TrendingKeyword {
+  keyword: string;
+  count: number;
+}
+
+export interface PaginationParams {
+  page?: number;
+  limit?: number;
+  offset?: number;
+}
+
+export interface PaginatedResult<T> {
+  data: T[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+    hasNext: boolean;
+    hasPrev: boolean;
+  };
+}
+
+export type Timeframe = "24h" | "7d" | "30d";
+
 const TIMEFRAME_HOURS: Record<Timeframe, number> = {
   "24h": 24,
   "7d": 24 * 7,
   "30d": 24 * 30,
 };
 
-let _cachedArticles: any[] = [];
+let _cachedArticles: Article[] = [];
 let _cachedLoadedAt = 0;
 
-function parsePrecomputedCompound(article: any): number | null {
-  const candidates = [
+function parsePrecomputedCompound(article: Article): number | null {
+  const candidates: (number | string | undefined)[] = [
     article?.sentiment,
     article?.sentimentScore,
     article?.compound,
@@ -69,7 +122,7 @@ function scoresFromCompound(compound: number) {
   };
 }
 
-function buildMatchHaystack(article: any): string {
+function buildMatchHaystack(article: Article): string {
   return [
     String(article.title || ""),
     String(article.body || ""),
@@ -134,10 +187,10 @@ function timeframeStartDate(timeframe: Timeframe, now = new Date()): Date {
 }
 
 function filterArticlesByDateRange(
-  articles: any[],
+  articles: Article[],
   startDate?: string,
   endDate?: string,
-): any[] {
+): Article[] {
   let start: Date | undefined;
   let end: Date | undefined;
 
@@ -176,7 +229,7 @@ function filterArticlesByDateRange(
   });
 }
 
-function filterArticlesByTimeframe(articles: any[], timeframe: Timeframe): any[] {
+function filterArticlesByTimeframe(articles: Article[], timeframe: Timeframe): Article[] {
   const start = timeframeStartDate(timeframe);
   return articles.filter((article) => {
     const published = new Date(String(article.publishedAt || ""));
@@ -195,7 +248,7 @@ function deriveSourceUrl(url: string): string {
   }
 }
 
-function aggregateSources(articles: any[]): SourceSummary[] {
+function aggregateSources(articles: Article[]): SourceSummary[] {
   const sources = new Map<string, SourceSummary>();
 
   for (const article of articles) {
@@ -227,7 +280,7 @@ function aggregateSources(articles: any[]): SourceSummary[] {
   return Array.from(sources.values()).sort((a, b) => b.articleCount - a.articleCount);
 }
 
-function getTrendingKeywords(articles: any[], limit: number) {
+function getTrendingKeywords(articles: Article[], limit: number): TrendingKeyword[] {
   const stopwords = new Set([
     // Common stopwords and filler words
     "the",
@@ -310,7 +363,7 @@ function getTrendingKeywords(articles: any[], limit: number) {
     .map(([keyword, count]) => ({ keyword, count }));
 }
 
-function loadLocalFallback(): any[] {
+function loadLocalFallback(): Article[] {
   const localPath = resolveLocalFallbackPath();
   if (!localPath) {
     return [];
@@ -325,7 +378,7 @@ function loadLocalFallback(): any[] {
   }
 }
 
-async function loadCleanArticles(): Promise<any[]> {
+async function loadCleanArticles(): Promise<Article[]> {
   const now = Date.now();
   if (_cachedArticles.length && now - _cachedLoadedAt < CACHE_TTL_SECONDS * 1000) {
     return _cachedArticles;
@@ -369,7 +422,7 @@ async function streamToString(stream: any): Promise<string> {
   });
 }
 
-export async function searchArticles(keyword: string, sourceId?: string): Promise<any[]> {
+export async function searchArticles(keyword: string, sourceId?: string): Promise<Article[]> {
   const normalized = keyword.toLowerCase();
   const articles = await loadCleanArticles();
   return articles.filter((article) => {
@@ -380,8 +433,8 @@ export async function searchArticles(keyword: string, sourceId?: string): Promis
   });
 }
 
-export async function computeSentimentForArticles(articles: any[]) {
-  const scored: any[] = [];
+export async function computeSentimentForArticles(articles: Article[]): Promise<ArticleWithSentiment[]> {
+  const scored: ArticleWithSentiment[] = [];
   for (const article of articles) {
     const precomputed = parsePrecomputedCompound(article);
     const scores =
@@ -393,6 +446,39 @@ export async function computeSentimentForArticles(articles: any[]) {
     scored.push({ article, scores });
   }
   return scored;
+}
+
+export function parsePaginationParams(query: any): PaginationParams {
+  const page = Math.max(1, parseInt(String(query.page || "1"), 10));
+  const limit = Math.min(Math.max(1, parseInt(String(query.limit || "20"), 10)), 100);
+  const offset = (page - 1) * limit;
+  
+  return { page, limit, offset };
+}
+
+export function createPaginatedResult<T>(
+  data: T[],
+  page: number,
+  limit: number,
+  total?: number
+): PaginatedResult<T> {
+  const totalCount = total ?? data.length;
+  const totalPages = Math.ceil(totalCount / limit);
+  const startIndex = (page - 1) * limit;
+  const endIndex = startIndex + limit;
+  const paginatedData = total ? data.slice(startIndex, endIndex) : data;
+  
+  return {
+    data: paginatedData,
+    pagination: {
+      page,
+      limit,
+      total: totalCount,
+      totalPages,
+      hasNext: page < totalPages,
+      hasPrev: page > 1,
+    },
+  };
 }
 
 export {
