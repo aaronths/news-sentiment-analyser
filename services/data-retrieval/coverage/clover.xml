@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<coverage generated="1773922785086" clover="3.2.0">
-  <project timestamp="1773922785086" name="All files">
-    <metrics statements="679" coveredstatements="581" conditionals="423" coveredconditionals="265" methods="124" coveredmethods="109" elements="1226" coveredelements="955" complexity="0" loc="679" ncloc="679" packages="5" files="7" classes="7"/>
+<coverage generated="1774915881285" clover="3.2.0">
+  <project timestamp="1774915881285" name="All files">
+    <metrics statements="680" coveredstatements="580" conditionals="423" coveredconditionals="263" methods="124" coveredmethods="109" elements="1227" coveredelements="952" complexity="0" loc="680" ncloc="680" packages="5" files="7" classes="7"/>
     <package name="src">
-      <metrics statements="25" coveredstatements="23" conditionals="7" coveredconditionals="6" methods="3" coveredmethods="1"/>
-      <file name="main.ts" path="C:\Users\User\news-sentiment-analyser\services\data-retrieval\src\main.ts">
-        <metrics statements="25" coveredstatements="23" conditionals="7" coveredconditionals="6" methods="3" coveredmethods="1"/>
+      <metrics statements="26" coveredstatements="24" conditionals="7" coveredconditionals="6" methods="3" coveredmethods="1"/>
+      <file name="main.ts" path="/Users/aaronsiew/SENG3011/news-sentiment-analyser/services/data-retrieval/src/main.ts">
+        <metrics statements="26" coveredstatements="24" conditionals="7" coveredconditionals="6" methods="3" coveredmethods="1"/>
         <line num="1" count="1" type="stmt"/>
         <line num="2" count="1" type="stmt"/>
         <line num="3" count="1" type="stmt"/>
@@ -28,14 +28,15 @@
         <line num="32" count="1" type="stmt"/>
         <line num="35" count="1" type="stmt"/>
         <line num="36" count="1" type="stmt"/>
-        <line num="39" count="1" type="stmt"/>
-        <line num="43" count="1" type="cond" truecount="3" falsecount="1"/>
-        <line num="45" count="0" type="stmt"/>
+        <line num="43" count="1" type="stmt"/>
+        <line num="46" count="1" type="stmt"/>
+        <line num="50" count="1" type="cond" truecount="3" falsecount="1"/>
+        <line num="52" count="0" type="stmt"/>
       </file>
     </package>
     <package name="src.config">
       <metrics statements="6" coveredstatements="6" conditionals="0" coveredconditionals="0" methods="1" coveredmethods="1"/>
-      <file name="load-environment.ts" path="C:\Users\User\news-sentiment-analyser\services\data-retrieval\src\config\load-environment.ts">
+      <file name="load-environment.ts" path="/Users/aaronsiew/SENG3011/news-sentiment-analyser/services/data-retrieval/src/config/load-environment.ts">
         <metrics statements="6" coveredstatements="6" conditionals="0" coveredconditionals="0" methods="1" coveredmethods="1"/>
         <line num="1" count="1" type="stmt"/>
         <line num="2" count="1" type="stmt"/>
@@ -47,7 +48,7 @@
     </package>
     <package name="src.controllers">
       <metrics statements="395" coveredstatements="323" conditionals="253" coveredconditionals="152" methods="70" coveredmethods="60"/>
-      <file name="charts.controller.ts" path="C:\Users\User\news-sentiment-analyser\services\data-retrieval\src\controllers\charts.controller.ts">
+      <file name="charts.controller.ts" path="/Users/aaronsiew/SENG3011/news-sentiment-analyser/services/data-retrieval/src/controllers/charts.controller.ts">
         <metrics statements="44" coveredstatements="35" conditionals="19" coveredconditionals="15" methods="7" coveredmethods="7"/>
         <line num="2" count="1" type="stmt"/>
         <line num="10" count="6" type="cond" truecount="2" falsecount="0"/>
@@ -94,7 +95,7 @@
         <line num="76" count="0" type="stmt"/>
         <line num="77" count="0" type="stmt"/>
       </file>
-      <file name="retrieval.controller.ts" path="C:\Users\User\news-sentiment-analyser\services\data-retrieval\src\controllers\retrieval.controller.ts">
+      <file name="retrieval.controller.ts" path="/Users/aaronsiew/SENG3011/news-sentiment-analyser/services/data-retrieval/src/controllers/retrieval.controller.ts">
         <metrics statements="351" coveredstatements="288" conditionals="234" coveredconditionals="137" methods="63" coveredmethods="53"/>
         <line num="1" count="1" type="stmt"/>
         <line num="4" count="1" type="stmt"/>
@@ -451,7 +452,7 @@
     </package>
     <package name="src.routes">
       <metrics statements="27" coveredstatements="27" conditionals="0" coveredconditionals="0" methods="0" coveredmethods="0"/>
-      <file name="retrieval.routes.ts" path="C:\Users\User\news-sentiment-analyser\services\data-retrieval\src\routes\retrieval.routes.ts">
+      <file name="retrieval.routes.ts" path="/Users/aaronsiew/SENG3011/news-sentiment-analyser/services/data-retrieval/src/routes/retrieval.routes.ts">
         <metrics statements="27" coveredstatements="27" conditionals="0" coveredconditionals="0" methods="0" coveredmethods="0"/>
         <line num="1" count="1" type="stmt"/>
         <line num="2" count="1" type="stmt"/>
@@ -483,9 +484,9 @@
       </file>
     </package>
     <package name="src.services">
-      <metrics statements="226" coveredstatements="202" conditionals="163" coveredconditionals="107" methods="50" coveredmethods="47"/>
-      <file name="articles.service.ts" path="C:\Users\User\news-sentiment-analyser\services\data-retrieval\src\services\articles.service.ts">
-        <metrics statements="170" coveredstatements="146" conditionals="136" coveredconditionals="89" methods="30" coveredmethods="28"/>
+      <metrics statements="226" coveredstatements="200" conditionals="163" coveredconditionals="105" methods="50" coveredmethods="47"/>
+      <file name="articles.service.ts" path="/Users/aaronsiew/SENG3011/news-sentiment-analyser/services/data-retrieval/src/services/articles.service.ts">
+        <metrics statements="170" coveredstatements="144" conditionals="136" coveredconditionals="87" methods="30" coveredmethods="28"/>
         <line num="2" count="11" type="stmt"/>
         <line num="3" count="11" type="stmt"/>
         <line num="4" count="11" type="stmt"/>
@@ -565,37 +566,37 @@
         <line num="194" count="2" type="stmt"/>
         <line num="199" count="2" type="stmt"/>
         <line num="201" count="2" type="stmt"/>
-        <line num="202" count="5" type="cond" truecount="1" falsecount="1"/>
-        <line num="203" count="5" type="cond" truecount="0" falsecount="1"/>
+        <line num="202" count="4" type="cond" truecount="1" falsecount="1"/>
+        <line num="203" count="4" type="cond" truecount="0" falsecount="1"/>
         <line num="204" count="0" type="stmt"/>
-        <line num="207" count="5" type="cond" truecount="1" falsecount="1"/>
-        <line num="208" count="5" type="stmt"/>
-        <line num="210" count="5" type="cond" truecount="1" falsecount="0"/>
+        <line num="207" count="4" type="cond" truecount="1" falsecount="1"/>
+        <line num="208" count="4" type="stmt"/>
+        <line num="210" count="4" type="cond" truecount="1" falsecount="0"/>
         <line num="211" count="4" type="stmt"/>
         <line num="218" count="4" type="stmt"/>
-        <line num="221" count="1" type="stmt"/>
-        <line num="222" count="1" type="cond" truecount="2" falsecount="1"/>
+        <line num="221" count="0" type="stmt"/>
+        <line num="222" count="0" type="cond" truecount="0" falsecount="3"/>
         <line num="223" count="0" type="stmt"/>
         <line num="227" count="2" type="stmt"/>
         <line num="231" count="2" type="stmt"/>
         <line num="276" count="2" type="stmt"/>
         <line num="277" count="2" type="stmt"/>
         <line num="279" count="2" type="stmt"/>
-        <line num="280" count="5" type="stmt"/>
-        <line num="281" count="5" type="cond" truecount="1" falsecount="1"/>
-        <line num="287" count="5" type="stmt"/>
-        <line num="288" count="10" type="cond" truecount="1" falsecount="1"/>
-        <line num="289" count="10" type="cond" truecount="4" falsecount="0"/>
+        <line num="280" count="4" type="stmt"/>
+        <line num="281" count="4" type="cond" truecount="1" falsecount="1"/>
+        <line num="287" count="4" type="stmt"/>
+        <line num="288" count="8" type="cond" truecount="1" falsecount="1"/>
+        <line num="289" count="8" type="cond" truecount="4" falsecount="0"/>
         <line num="290" count="2" type="stmt"/>
-        <line num="293" count="8" type="cond" truecount="2" falsecount="0"/>
-        <line num="294" count="8" type="cond" truecount="1" falsecount="0"/>
-        <line num="295" count="8" type="stmt"/>
-        <line num="296" count="8" type="cond" truecount="2" falsecount="0"/>
+        <line num="293" count="6" type="cond" truecount="2" falsecount="0"/>
+        <line num="294" count="6" type="cond" truecount="1" falsecount="0"/>
+        <line num="295" count="6" type="stmt"/>
+        <line num="296" count="6" type="cond" truecount="2" falsecount="0"/>
         <line num="304" count="2" type="stmt"/>
         <line num="306" count="2" type="stmt"/>
-        <line num="307" count="8" type="cond" truecount="3" falsecount="1"/>
-        <line num="308" count="9" type="stmt"/>
-        <line num="310" count="7" type="stmt"/>
+        <line num="307" count="6" type="cond" truecount="3" falsecount="1"/>
+        <line num="308" count="4" type="stmt"/>
+        <line num="310" count="6" type="stmt"/>
         <line num="314" count="4" type="stmt"/>
         <line num="315" count="4" type="cond" truecount="0" falsecount="1"/>
         <line num="316" count="0" type="stmt"/>
@@ -657,7 +658,7 @@
         <line num="407" count="11" type="stmt"/>
         <line num="408" count="11" type="stmt"/>
       </file>
-      <file name="charts.service.ts" path="C:\Users\User\news-sentiment-analyser\services\data-retrieval\src\services\charts.service.ts">
+      <file name="charts.service.ts" path="/Users/aaronsiew/SENG3011/news-sentiment-analyser/services/data-retrieval/src/services/charts.service.ts">
         <metrics statements="56" coveredstatements="56" conditionals="27" coveredconditionals="18" methods="20" coveredmethods="19"/>
         <line num="2" count="7" type="stmt"/>
         <line num="3" count="7" type="stmt"/>
