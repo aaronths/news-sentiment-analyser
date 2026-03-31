@@ -18,6 +18,7 @@ import {
   createPaginatedResult,
 } from "../services/articles.service";
 import { parseChartDimension, renderChartToPng } from "../services/charts.service";
+import { logger } from "../utils/logger";
 
 const MONTH_LABELS = [
   "Jan",
@@ -213,6 +214,7 @@ async function buildMonthlyMentionsBySourceChartPayload(
 
 // health/test helper that's kept for backwards compatibility
 export const performTest = async (req: Request, res: Response) => {
+  logger.info("Health check successful");
   res.json({ success: true });
 };
 
@@ -300,6 +302,14 @@ export const getArticles = async (req: Request, res: Response) => {
 
     const paginatedArticles = createPaginatedResult(topArticles, page || 1, limit || 20, scored.length);
 
+    // add logging
+    logger.info("Successfully fetched articles", { 
+      keyword, 
+      sourceId, 
+      totalMatches: matched.length,
+      returnedCount: topArticles.length 
+    });
+
     handleSuccess(res, {
       keyword,
       totalMatches: matched.length,
@@ -312,6 +322,13 @@ export const getArticles = async (req: Request, res: Response) => {
       )}&endDate=${encodeURIComponent(endDate || "")}&page=${page}`,
     });
   } catch (error) {
+
+    // error log
+    logger.error("Failed to fetch articles", error, { 
+      keyword: req.query.keyword,
+      sourceId: req.query.sourceId 
+    });
+
     if (error instanceof Error) {
       handleValidationError(res, error);
     } else {
@@ -324,7 +341,7 @@ export const getArticleMetadata = async (req: Request, res: Response) => {
   try {
     const keyword = validateRequiredString(req.query.keyword, "keyword");
     const { page, limit } = parsePaginationParams(req.query);
-    
+
     const matched = await searchArticles(keyword);
     const metadata = matched.map((a) => ({
       id: a.id,
@@ -335,8 +352,23 @@ export const getArticleMetadata = async (req: Request, res: Response) => {
     }));
     
     const paginatedMetadata = createPaginatedResult(metadata, page || 1, limit || 20, matched.length);
+
+    logger.info("Successfully fetched article metadata", {
+      keyword,
+      totalMatches: matched.length,
+      returnedCount: paginatedMetadata.data.length,
+      page,
+      limit,
+    });
+
     handleSuccess(res, paginatedMetadata);
   } catch (error) {
+    logger.error("Failed to fetch article metadata", error, {
+      keyword: req.query.keyword,
+      page: req.query.page,
+      limit: req.query.limit,
+    });
+
     if (error instanceof Error) {
       handleValidationError(res, error);
     } else {
@@ -355,10 +387,13 @@ export const getArticleById = async (req: Request, res: Response) => {
     const articles = await searchArticles("");
     const found = articles.find((a) => String(a.id) === id);
     if (!found) {
+      logger.info("Article lookup failed - Not Found", { requestedId: id });
       return handleNotFound(res, "Article could not be found (invalid article id)");
     }
+    logger.info("Successfully fetched article by ID", { articleId: id });
     handleSuccess(res, found);
   } catch (error) {
+    logger.error("Error during article ID lookup", error, { requestedId: req.params.id });
     if (error instanceof Error) {
       handleValidationError(res, error);
     } else {
@@ -366,6 +401,7 @@ export const getArticleById = async (req: Request, res: Response) => {
     }
   }
 };
+
 
 export const getArticleSentiment = async (req: Request, res: Response) => {
   try {
@@ -376,10 +412,17 @@ export const getArticleSentiment = async (req: Request, res: Response) => {
     const articles = await searchArticles("");
     const found = articles.find((a) => String(a.id) === id);
     if (!found) {
+      logger.info("Article sentiment lookup failed - Not Found", { requestedId: id });
       return handleNotFound(res, "Article could not be found (invalid article id)");
     }
     const scored = await computeSentimentForArticles([found]);
     const score = scored[0].scores;
+
+    logger.info("Successfully fetched article sentiment", {
+      articleId: found.id,
+      sentimentLabel: labelForCompound(score.compound),
+    });
+
     handleSuccess(res, {
       articleId: found.id,
       title: found.title,
@@ -388,6 +431,8 @@ export const getArticleSentiment = async (req: Request, res: Response) => {
       publishedAt: found.publishedAt,
     });
   } catch (error) {
+    logger.error("Failed to fetch article sentiment", error, { requestedId: req.params.id });
+
     if (error instanceof Error) {
       handleValidationError(res, error);
     } else {
@@ -417,6 +462,15 @@ export const getSentiment = async (req: Request, res: Response) => {
     });
     const avg =
       scored.reduce((sum, e) => sum + e.scores.compound, 0) / (scored.length || 1);
+
+    logger.info("Successfully fetched sentiment summary", {
+      keyword,
+      sourceId,
+      timeframe,
+      articleCount: matched.length,
+      averageSentiment: Number(avg.toFixed(4)),
+    });
+
     handleSuccess(res, {
       keyword,
       sourceId,
@@ -426,6 +480,12 @@ export const getSentiment = async (req: Request, res: Response) => {
       distribution,
     });
   } catch (error) {
+    logger.error("Failed to fetch sentiment summary", error, {
+      keyword: req.query.keyword,
+      sourceId: req.query.sourceId,
+      timeframe: req.query.timeframe,
+    });
+
     if (error instanceof Error) {
       handleValidationError(res, error);
     } else {
@@ -471,6 +531,14 @@ export const getSentimentTrend = async (req: Request, res: Response) => {
       articleCount: stats.articleCount,
     }));
 
+  logger.info("Successfully fetched sentiment trend", {
+    keyword,
+    sourceId,
+    timeframe,
+    articleCount: matched.length,
+    pointCount: dataPoints.length,
+  });
+
   res.json({ keyword, sourceId, timeframe, dataPoints });
 };
 
@@ -484,8 +552,21 @@ export const getTrending = async (req: Request, res: Response) => {
 
     const recentArticles = filterArticlesByTimeframe(await loadCleanArticles(), timeframe);
     const trending = getTrendingKeywords(recentArticles, limit);
+
+    logger.info("Successfully fetched trending keywords", {
+      timeframe,
+      requestedLimit: limit,
+      returnedCount: trending.length,
+      articleCount: recentArticles.length,
+    });
+
     handleSuccess(res, { timeframe, keywords: trending });
   } catch (error) {
+    logger.error("Failed to fetch trending keywords", error, {
+      timeframe: req.query.timeframe,
+      limit: req.query.limit,
+    });
+
     if (error instanceof Error) {
       handleValidationError(res, error);
     } else {
@@ -504,9 +585,17 @@ export const getSources = async (req: Request, res: Response) => {
 
     const recentArticles = filterArticlesByTimeframe(await loadCleanArticles(), timeframe);
     const sources = aggregateSources(recentArticles);
-    
+
     const paginatedSources = createPaginatedResult(sources, page || 1, limit || 20, sources.length);
-    
+
+    logger.info("Successfully fetched sources", {
+      timeframe,
+      totalSources: sources.length,
+      returnedCount: paginatedSources.data.length,
+      page,
+      limit,
+    });
+
     handleSuccess(res, {
       ...paginatedSources,
       data: paginatedSources.data.map((source) => ({
@@ -518,6 +607,12 @@ export const getSources = async (req: Request, res: Response) => {
       })),
     });
   } catch (error) {
+    logger.error("Failed to fetch sources", error, {
+      timeframe: req.query.timeframe,
+      page: req.query.page,
+      limit: req.query.limit,
+    });
+
     if (error instanceof Error) {
       handleValidationError(res, error);
     } else {
@@ -569,6 +664,14 @@ export const getSentimentBySource = async (req: Request, res: Response) => {
   }
 
   const summary = await computeSourceSummary(keyword, sourceId, timeframe);
+
+  logger.info("Successfully fetched sentiment by source", {
+    keyword,
+    sourceId,
+    timeframe,
+    articleCount: summary.articleCount,
+    averageSentiment: summary.averageSentiment,
+  });
   res.json(summary);
 };
 
@@ -599,6 +702,13 @@ export const getSentimentComparison = async (req: Request, res: Response) => {
   for (const sourceId of sourceIds) {
     comparisons.push(await computeSourceSummary(keyword, sourceId, timeframe));
   }
+
+  logger.info("Successfully fetched sentiment comparison", {
+    keyword,
+    timeframe,
+    requestedSourceCount: requestedSourceIds.length,
+    comparedSourceCount: comparisons.length,
+  });
 
   res.json({
     keyword,
@@ -821,12 +931,16 @@ export const getApiKey = async (req: Request, res: Response) => {
   const record = validateApiKey(req);
   if (!record) {
     if (activeApiKey && activeApiKey.status === "revoked") {
+      logger.info("API key lookup failed - key revoked");
       return res
         .status(404)
         .json({ code: 404, message: "No active API key found for this user" });
     }
+    logger.info("API key lookup failed - missing or invalid key");
     return res.status(401).json({ code: 401, message: "Missing or invalid API key" });
   }
+
+  logger.info("Successfully fetched API key metadata", { keyId: record.keyId, status: record.status });
 
   res.json({
     keyId: record.keyId,
@@ -839,6 +953,7 @@ export const getApiKey = async (req: Request, res: Response) => {
 
 export const createApiKey = async (req: Request, res: Response) => {
   if (activeApiKey && activeApiKey.status === "active") {
+    logger.info("Blocked API key creation - User already has active key");
     return res
       .status(409)
       .json({ code: 409, message: "An active API key already exists for this user" });
@@ -857,6 +972,11 @@ export const createApiKey = async (req: Request, res: Response) => {
     status: "active",
   };
 
+  logger.info("Generated new API key", { 
+    keyId, 
+    label 
+  });
+
   res.status(201).json({ keyId, key, label, createdAt: now });
 };
 
@@ -865,12 +985,14 @@ export const revokeApiKey = async (req: Request, res: Response) => {
     const record = validateApiKey(req);
     if (!record) {
       if (activeApiKey && activeApiKey.status === "active") {
+        logger.info("API key revoke failed - missing or invalid key");
         return handleValidationError(res, new Error("Missing or invalid API key"));
       }
+      logger.info("API key revoke failed - no active key found");
       return handleNotFound(res, "No active API key found for this user");
     }
-
     record.status = "revoked";
+    logger.info("Successfully revoked API key", { keyId: record.keyId });
     handleNoContent(res);
   } catch (error) {
     if (error instanceof Error) {

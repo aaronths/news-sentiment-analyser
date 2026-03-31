@@ -2,6 +2,8 @@
 import fs from "fs";
 import path from "path";
 import { S3Client, GetObjectCommand } from "@aws-sdk/client-s3";
+import AWSXRay from 'aws-xray-sdk-core';
+
 // resolver sometimes ignores our ambient declaration; suppress with ignore
 // to keep ts-node-dev happy during dev
 import vader from "vader-sentiment";
@@ -13,6 +15,13 @@ function getStorageMode(): "local-file" | "s3" {
   const raw = process.env.NEWS_DATA_STORAGE_MODE?.trim().toLowerCase();
   return raw === "s3" ? "s3" : "local-file";
 }
+
+
+// Implement tracing wrapper if on aws
+const rawS3Client = new S3Client({});
+const isLambda = !!process.env.AWS_EXECUTION_ENV;
+const s3 = isLambda ? AWSXRay.captureAWSv3Client(rawS3Client) : rawS3Client;
+
 
 export interface Article {
   id: string | number;
@@ -397,7 +406,6 @@ async function loadCleanArticles(): Promise<Article[]> {
   }
 
   try {
-    const s3 = new S3Client({});
     const cmd = new GetObjectCommand({ Bucket: bucket, Key: key });
     const res = await s3.send(cmd);
     // body is a stream
