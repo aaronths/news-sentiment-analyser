@@ -406,7 +406,6 @@ async function loadCleanArticles(): Promise<Article[]> {
   }
 
   try {
-    const s3 = new S3Client({});
     const cmd = new GetObjectCommand({ Bucket: bucket, Key: key });
     const res = await s3.send(cmd);
     // body is a stream
