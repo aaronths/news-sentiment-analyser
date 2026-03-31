@@ -19,12 +19,12 @@ export const readRawArticles = async (): Promise<RawArticle[]> => {
   await ensureStorage();
   try {
     const fileContents = await fs.readFile(RAW_ARTICLES_PATH, "utf-8");
-    
+
     // Handle empty file case
     if (!fileContents.trim()) {
       return [];
     }
-    
+
     const parsed: unknown = JSON.parse(fileContents);
     return Array.isArray(parsed) ? (parsed as RawArticle[]) : [];
   } catch (error) {
@@ -65,11 +65,18 @@ export const appendRawArticles = async (articles: RawArticle[]) => {
 
 export const getRawArticlesPath = () => RAW_ARTICLES_PATH;
 
-const INGEST_SUMMARY_PATH = path.join(getDataDirectory(), "ingest-summary.json");
+const INGEST_SUMMARY_PATH = path.join(
+  getDataDirectory(),
+  "ingest-summary.json",
+);
 
 export const writeIngestSummary = async (summary: unknown) => {
   await ensureStorage();
-  await fs.writeFile(INGEST_SUMMARY_PATH, `${JSON.stringify(summary, null, 2)}\n`, "utf-8");
+  await fs.writeFile(
+    INGEST_SUMMARY_PATH,
+    `${JSON.stringify(summary, null, 2)}\n`,
+    "utf-8",
+  );
 };
 
 export const readIngestSummary = async (): Promise<unknown | null> => {

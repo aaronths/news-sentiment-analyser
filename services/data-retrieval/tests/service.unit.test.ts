@@ -169,6 +169,181 @@ describe("articles.service helpers and storage behavior", () => {
   });
 });
 
+describe("articles.service filters, pagination, and edge cases", () => {
+  const baseArticle = {
+    id: "1",
+    sourceId: "src-a",
+    sourceName: "Source A",
+    title: "Title",
+    publishedAt: "2025-06-15T12:00:00.000Z",
+  };
+
+  let edgeCaseTempDir: string;
+
+  beforeAll(() => {
+    edgeCaseTempDir = fs.mkdtempSync(path.join(os.tmpdir(), "data-retrieval-edge-"));
+  });
+
+  afterAll(() => {
+    try {
+      fs.rmSync(edgeCaseTempDir, { recursive: true, force: true });
+    } catch {
+      // ignore cleanup failures
+    }
+  });
+
+  afterEach(() => {
+    delete process.env.NEWS_DATA_BUCKET;
+    delete process.env.NEWS_DATA_STORAGE_MODE;
+    delete process.env.NEWS_DATA_LOCAL_CLEAN_PATH;
+    jest.resetModules();
+  });
+
+  it("computeSentimentForArticles ignores non-finite precomputed sentiment and uses vader", async () => {
+    const { computeSentimentForArticles } = await import("../src/services/articles.service");
+
+    const [result] = await computeSentimentForArticles([
+      {
+        ...baseArticle,
+        id: "nan-sentiment",
+        body: "Great news",
+        sentimentText: "Great news",
+        sentiment: Number.NaN,
+      },
+    ]);
+
+    expect(typeof result.scores.compound).toBe("number");
+    expect(Number.isFinite(result.scores.compound)).toBe(true);
+  });
+
+  it("buildMatchHaystack joins title, body, and keyword tokens", async () => {
+    const { buildMatchHaystack } = await import("../src/services/articles.service");
+
+    const hay = buildMatchHaystack({
+      ...baseArticle,
+      title: "Hello",
+      body: "World",
+      keywordTokens: ["alpha", "beta"],
+    });
+
+    expect(hay).toContain("hello");
+    expect(hay).toContain("world");
+    expect(hay).toContain("alpha");
+  });
+
+  it("timeframeStartDate moves the window back by the timeframe hours", async () => {
+    const { timeframeStartDate } = await import("../src/services/articles.service");
+
+    const now = new Date("2025-06-15T12:00:00.000Z");
+    const start = timeframeStartDate("7d", now);
+
+    expect(start.getTime()).toBeLessThan(now.getTime());
+    expect((now.getTime() - start.getTime()) / (3600 * 1000)).toBeCloseTo(24 * 7, 0);
+  });
+
+  it("parsePaginationParams and createPaginatedResult slice and count correctly", async () => {
+    const { parsePaginationParams, createPaginatedResult } = await import("../src/services/articles.service");
+
+    const params = parsePaginationParams({ page: "2", limit: "10" });
+    expect(params.page).toBe(2);
+    expect(params.limit).toBe(10);
+    expect(params.offset).toBe(10);
+
+    const items = [1, 2, 3, 4, 5];
+    const page1 = createPaginatedResult(items, 1, 2, 5);
+    expect(page1.data).toEqual([1, 2]);
+    expect(page1.pagination.total).toBe(5);
+    expect(page1.pagination.totalPages).toBe(3);
+    expect(page1.pagination.hasNext).toBe(true);
+    expect(page1.pagination.hasPrev).toBe(false);
+
+    const passthrough = createPaginatedResult(items, 1, 10);
+    expect(passthrough.data).toEqual(items);
+  });
+
+  it("filterArticlesByDateRange returns empty for invalid bounds and filters by range", async () => {
+    const { filterArticlesByDateRange } = await import("../src/services/articles.service");
+
+    const articles = [
+      { ...baseArticle, id: "a1", publishedAt: "2025-06-01T00:00:00.000Z" },
+      { ...baseArticle, id: "a2", publishedAt: "2025-08-01T00:00:00.000Z" },
+    ];
+
+    expect(filterArticlesByDateRange(articles, "not-a-date")).toEqual([]);
+    expect(filterArticlesByDateRange(articles, "2025-01-01", "not-a-date")).toEqual([]);
+    expect(filterArticlesByDateRange(articles, "2025-07-01", "2025-12-31")).toHaveLength(1);
+    expect(filterArticlesByDateRange(articles, "2025-01-01", "2025-12-31")).toHaveLength(2);
+  });
+
+  it("filterArticlesByDateRange drops articles with invalid publishedAt when filtering", async () => {
+    const { filterArticlesByDateRange } = await import("../src/services/articles.service");
+
+    const articles = [
+      { ...baseArticle, id: "ok", publishedAt: "2025-06-01T00:00:00.000Z" },
+      { ...baseArticle, id: "bad-date", publishedAt: "invalid" },
+    ];
+
+    expect(filterArticlesByDateRange(articles, "2025-01-01", "2025-12-31")).toHaveLength(1);
+  });
+
+  it("filterArticlesByTimeframe excludes articles with invalid publishedAt", async () => {
+    const { filterArticlesByTimeframe } = await import("../src/services/articles.service");
+
+    const articles = [
+      { ...baseArticle, id: "ok", publishedAt: "2025-06-15T00:00:00.000Z" },
+      { ...baseArticle, id: "bad", publishedAt: "not-a-date" },
+    ];
+
+    const filtered = filterArticlesByTimeframe(articles, "30d");
+    expect(filtered.every((a) => a.id === "ok")).toBe(true);
+  });
+
+  it("aggregateSources skips blank sourceId and updates latestPublishedAt", async () => {
+    const { aggregateSources } = await import("../src/services/articles.service");
+
+    const articles = [
+      { ...baseArticle, id: "skip", sourceId: "", publishedAt: "2025-01-01T00:00:00.000Z" },
+      { ...baseArticle, id: "a1", sourceId: "src-a", publishedAt: "2025-01-01T00:00:00.000Z" },
+      { ...baseArticle, id: "a2", sourceId: "src-a", publishedAt: "2025-12-01T00:00:00.000Z" },
+    ];
+
+    const agg = aggregateSources(articles);
+    const row = agg.find((s) => s.id === "src-a");
+    expect(row?.articleCount).toBe(2);
+    expect(row?.latestPublishedAt).toBe("2025-12-01T00:00:00.000Z");
+  });
+
+  it("getTrendingKeywords uses title tokens when keywordTokens are absent", async () => {
+    const { getTrendingKeywords } = await import("../src/services/articles.service");
+
+    const articles = [
+      {
+        ...baseArticle,
+        id: "title-tokens",
+        title: "Marketplace inflation outlook",
+        keywordTokens: undefined,
+      },
+    ];
+
+    const trending = getTrendingKeywords(articles, 10);
+    expect(trending.some((t) => t.keyword === "marketplace")).toBe(true);
+  });
+
+  it("loadCleanArticles returns empty array when local JSON is invalid", async () => {
+    const badPath = path.join(edgeCaseTempDir, "corrupt-clean.json");
+    fs.writeFileSync(badPath, "{ not valid json");
+
+    process.env.NEWS_DATA_STORAGE_MODE = "local-file";
+    process.env.NEWS_DATA_LOCAL_CLEAN_PATH = badPath;
+
+    const { loadCleanArticles } = await import("../src/services/articles.service");
+    const data = await loadCleanArticles();
+
+    expect(Array.isArray(data)).toBe(true);
+    expect(data).toEqual([]);
+  });
+});
+
 describe("charts.service helpers", () => {
   const mockArticles = [
     { id: "1", sourceId: "a", sourceName: "A", title: "x", body: "y", publishedAt: "2025-01-01T00:00:00Z" },
