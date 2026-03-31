@@ -8,6 +8,5 @@ module.exports = {
   transform: {
     ...tsJestTransformCfg,
   },
+  testTimeout: 30000, // global test timeout of 30 seconds
 };
-
-jest.setTimeout(30000); // 30 seconds
