@@ -137,7 +137,7 @@ describe("Swagger endpoints", () => {
       .query({ keyword: "economy" });
 
     expect(res.status).toBe(200);
-    expect(Array.isArray(res.body.articles)).toBe(true);
+    expect(Array.isArray(res.body.articles.data)).toBe(true);
     expect(res.body.keyword).toBe("economy");
     expect(res.body.totalMatches).toBeGreaterThan(0);
 
@@ -146,8 +146,8 @@ describe("Swagger endpoints", () => {
       .get("/api/articles/metadata")
       .query({ keyword: "economy" });
     expect(meta.status).toBe(200);
-    if (Array.isArray(meta.body) && meta.body.length > 0) {
-      firstArticleId = meta.body[0].id;
+    if (Array.isArray(meta.body.data) && meta.body.data.length > 0) {
+      firstArticleId = meta.body.data[0].id;
     }
   });
 
@@ -231,7 +231,7 @@ describe("Swagger endpoints", () => {
   it("GET /api/sources returns indexed source list", async () => {
     const res = await request(app).get("/api/sources").query({ limit: 5 });
     expect(res.status).toBe(200);
-    expect(Array.isArray(res.body)).toBe(true);
+    expect(Array.isArray(res.body.data)).toBe(true);
   });
 
   it("GET /api/trending returns keyword frequencies", async () => {
@@ -379,9 +379,9 @@ describe("API key endpoints", () => {
     const res = await request(app)
       .delete("/api/auth/key")
       .set("X-API-Key", apiKey);
-    expect(res.status).toBe(200);
-    expect(res.body.keyId).toBeDefined();
-    expect(res.body.message).toContain("revoked");
+    expect(res.status).toBe(204);
+    // 204 No Content response should not have a body
+    expect(res.body).toEqual({});
   });
 
   it("GET /api/auth/key returns 404 after revocation", async () => {

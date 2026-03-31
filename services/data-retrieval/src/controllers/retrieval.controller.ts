@@ -14,6 +14,8 @@ import {
   timeframeStartDate,
   labelForCompound,
   Timeframe,
+  parsePaginationParams,
+  createPaginatedResult,
 } from "../services/articles.service";
 import { parseChartDimension, renderChartToPng } from "../services/charts.service";
 
@@ -44,6 +46,35 @@ const CHART_COLORS = [
   "#bcbd22",
   "#17becf",
 ];
+
+function validateRequiredString(value: unknown, fieldName: string): string {
+  const str = String(value || "").trim();
+  if (!str) {
+    throw new Error(`${fieldName} is required`);
+  }
+  return str;
+}
+
+function validateOptionalString(value: unknown): string | undefined {
+  const str = String(value || "").trim();
+  return str || undefined;
+}
+
+function handleValidationError(res: Response, error: Error): void {
+  res.status(400).json({ code: 400, message: error.message });
+}
+
+function handleNotFound(res: Response, message: string): void {
+  res.status(404).json({ code: 404, message });
+}
+
+function handleSuccess(res: Response, data: unknown, statusCode = 200): void {
+  res.status(statusCode).json(data);
+}
+
+function handleNoContent(res: Response): void {
+  res.status(204).send();
+}
 
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -185,187 +216,222 @@ export const performTest = async (req: Request, res: Response) => {
   res.json({ success: true });
 };
 
-// /api/articles?keyword=...&limit=&startDate=&endDate=
+// /api/articles?keyword=...&limit=&startDate=&endDate=&page=&limit=
 export const getArticles = async (req: Request, res: Response) => {
-  const keyword = String(req.query.keyword || "").trim();
-  if (!keyword) {
-    return res.status(400).json({ code: 400, message: "keyword required" });
-  }
+  try {
+    const keyword = validateRequiredString(req.query.keyword, "keyword");
+    const sourceId = validateOptionalString(req.query.sourceId);
+    const startDate = validateOptionalString(req.query.startDate);
+    const endDate = validateOptionalString(req.query.endDate);
+    const { page, limit } = parsePaginationParams(req.query);
 
-  const sourceId = String(req.query.sourceId || "").trim() || undefined;
-  const limit = parseLimit(String(req.query.limit || ""));
-  const startDate = String(req.query.startDate || "").trim() || undefined;
-  const endDate = String(req.query.endDate || "").trim() || undefined;
+    const matched = filterArticlesByDateRange(
+      await searchArticles(keyword, sourceId),
+      startDate,
+      endDate,
+    );
 
-  const matched = filterArticlesByDateRange(
-    await searchArticles(keyword, sourceId),
-    startDate,
-    endDate,
-  );
+    // compute sentiment rankings similar to the Python runtime
+    const scored = await computeSentimentForArticles(matched);
 
-  // compute sentiment rankings similar to the Python runtime
-  const scored = await computeSentimentForArticles(matched);
+    // using any here keeps the ranking logic simple; data comes from the article pool
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const outlets: Record<string, any> = {};
+    for (const entry of scored) {
+      const article = entry.article;
+      const scores = entry.scores;
+      const key = String(article.sourceId);
+      const outlet = (outlets[key] ||= {
+        sourceId: article.sourceId,
+        sourceName: article.sourceName,
+        articleCount: 0,
+        compoundScores: [] as number[],
+        positiveScores: [] as number[],
+        negativeScores: [] as number[],
+        neutralScores: [] as number[],
+      });
+      outlet.articleCount += 1;
+      outlet.compoundScores.push(scores.compound);
+      outlet.positiveScores.push(scores.pos);
+      outlet.negativeScores.push(scores.neg);
+      outlet.neutralScores.push(scores.neu);
+    }
 
-  // using any here keeps the ranking logic simple; data comes from the article pool
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const outlets: Record<string, any> = {};
-  for (const entry of scored) {
-    const article = entry.article;
-    const scores = entry.scores;
-    const key = String(article.sourceId);
-    const outlet = (outlets[key] ||= {
-      sourceId: article.sourceId,
-      sourceName: article.sourceName,
-      articleCount: 0,
-      compoundScores: [] as number[],
-      positiveScores: [] as number[],
-      negativeScores: [] as number[],
-      neutralScores: [] as number[],
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const rankings: any[] = [];
+    for (const outlet of Object.values(outlets)) {
+      const avgCompound =
+        outlet.compoundScores.reduce((a: number, b: number) => a + b, 0) /
+        outlet.compoundScores.length;
+      rankings.push({
+        sourceId: outlet.sourceId,
+        sourceName: outlet.sourceName,
+        articleCount: outlet.articleCount,
+        averageCompound: Number(avgCompound.toFixed(4)),
+        averagePositive: Number(
+          (outlet.positiveScores.reduce((a: number, b: number) => a + b, 0) /
+            outlet.positiveScores.length).toFixed(4)
+        ),
+        averageNegative: Number(
+          (outlet.negativeScores.reduce((a: number, b: number) => a + b, 0) /
+            outlet.negativeScores.length).toFixed(4)
+        ),
+        averageNeutral: Number(
+          (outlet.neutralScores.reduce((a: number, b: number) => a + b, 0) /
+            outlet.neutralScores.length).toFixed(4)
+        ),
+        sentimentLabel: labelForCompound(avgCompound),
+      });
+    }
+    rankings.sort((a, b) => b.averageCompound - a.averageCompound);
+
+    const topArticles = scored
+      .sort((a, b) => b.scores.compound - a.scores.compound)
+      .slice(0, limit)
+      .map((entry) => ({
+        sourceId: entry.article.sourceId,
+        sourceName: entry.article.sourceName,
+        title: entry.article.title,
+        summary: entry.article.summary,
+        publishedAt: entry.article.publishedAt,
+        url: entry.article.url,
+        compound: Number(entry.scores.compound.toFixed(4)),
+      }));
+
+    const paginatedArticles = createPaginatedResult(topArticles, page || 1, limit || 20, scored.length);
+
+    handleSuccess(res, {
+      keyword,
+      totalMatches: matched.length,
+      rankings,
+      articles: paginatedArticles,
+      self: `?keyword=${encodeURIComponent(keyword)}&sourceId=${encodeURIComponent(
+        sourceId || ""
+      )}&limit=${limit}&startDate=${encodeURIComponent(
+        startDate || ""
+      )}&endDate=${encodeURIComponent(endDate || "")}&page=${page}`,
     });
-    outlet.articleCount += 1;
-    outlet.compoundScores.push(scores.compound);
-    outlet.positiveScores.push(scores.pos);
-    outlet.negativeScores.push(scores.neg);
-    outlet.neutralScores.push(scores.neu);
+  } catch (error) {
+    if (error instanceof Error) {
+      handleValidationError(res, error);
+    } else {
+      res.status(500).json({ code: 500, message: "Internal server error" });
+    }
   }
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const rankings: any[] = [];
-  for (const outlet of Object.values(outlets)) {
-    const avgCompound =
-      outlet.compoundScores.reduce((a: number, b: number) => a + b, 0) /
-      outlet.compoundScores.length;
-    rankings.push({
-      sourceId: outlet.sourceId,
-      sourceName: outlet.sourceName,
-      articleCount: outlet.articleCount,
-      averageCompound: Number(avgCompound.toFixed(4)),
-      averagePositive: Number(
-        (outlet.positiveScores.reduce((a: number, b: number) => a + b, 0) /
-          outlet.positiveScores.length).toFixed(4)
-      ),
-      averageNegative: Number(
-        (outlet.negativeScores.reduce((a: number, b: number) => a + b, 0) /
-          outlet.negativeScores.length).toFixed(4)
-      ),
-      averageNeutral: Number(
-        (outlet.neutralScores.reduce((a: number, b: number) => a + b, 0) /
-          outlet.neutralScores.length).toFixed(4)
-      ),
-      sentimentLabel: labelForCompound(avgCompound),
-    });
-  }
-  rankings.sort((a, b) => b.averageCompound - a.averageCompound);
-
-  const topArticles = scored
-    .sort((a, b) => b.scores.compound - a.scores.compound)
-    .slice(0, limit)
-    .map((entry) => ({
-      sourceId: entry.article.sourceId,
-      sourceName: entry.article.sourceName,
-      title: entry.article.title,
-      summary: entry.article.summary,
-      publishedAt: entry.article.publishedAt,
-      url: entry.article.url,
-      compound: Number(entry.scores.compound.toFixed(4)),
-    }));
-
-  res.json({
-    keyword,
-    totalMatches: matched.length,
-    rankings,
-    articles: topArticles,
-    self: `?keyword=${encodeURIComponent(keyword)}&sourceId=${encodeURIComponent(
-      sourceId || ""
-    )}&limit=${limit}&startDate=${encodeURIComponent(
-      startDate || ""
-    )}&endDate=${encodeURIComponent(endDate || "")}`,
-  });
 };
 
 export const getArticleMetadata = async (req: Request, res: Response) => {
-  const keyword = String(req.query.keyword || "").trim();
-  if (!keyword) {
-    return res.status(400).json({ code: 400, message: "keyword required" });
+  try {
+    const keyword = validateRequiredString(req.query.keyword, "keyword");
+    const { page, limit } = parsePaginationParams(req.query);
+    
+    const matched = await searchArticles(keyword);
+    const metadata = matched.map((a) => ({
+      id: a.id,
+      title: a.title,
+      author: a.author,
+      source: a.sourceName,
+      publishedAt: a.publishedAt,
+    }));
+    
+    const paginatedMetadata = createPaginatedResult(metadata, page || 1, limit || 20, matched.length);
+    handleSuccess(res, paginatedMetadata);
+  } catch (error) {
+    if (error instanceof Error) {
+      handleValidationError(res, error);
+    } else {
+      res.status(500).json({ code: 500, message: "Internal server error" });
+    }
   }
-
-  const matched = await searchArticles(keyword);
-  const metadata = matched.map((a) => ({
-    id: a.id,
-    title: a.title,
-    author: a.author,
-    source: a.sourceName,
-    publishedAt: a.publishedAt,
-  }));
-  res.json(metadata);
 };
 
 export const getArticleById = async (req: Request, res: Response) => {
-  const { id } = req.params as { id?: string };
-  if (!id) {
-    return res.status(400).json({ code: 400, message: "id path parameter required" });
-  }
+  try {
+    const { id } = req.params as { id?: string };
+    if (!id) {
+      throw new Error("id path parameter required");
+    }
 
-  const articles = await searchArticles("");
-  const found = articles.find((a) => String(a.id) === id);
-  if (!found) {
-    return res.status(404).json({ code: 404, message: "Article could not be found (invalid article id)" });
+    const articles = await searchArticles("");
+    const found = articles.find((a) => String(a.id) === id);
+    if (!found) {
+      return handleNotFound(res, "Article could not be found (invalid article id)");
+    }
+    handleSuccess(res, found);
+  } catch (error) {
+    if (error instanceof Error) {
+      handleValidationError(res, error);
+    } else {
+      res.status(500).json({ code: 500, message: "Internal server error" });
+    }
   }
-  res.json(found);
 };
 
 export const getArticleSentiment = async (req: Request, res: Response) => {
-  const { id } = req.params as { id?: string };
-  if (!id) {
-    return res.status(400).json({ code: 400, message: "id path parameter required" });
+  try {
+    const { id } = req.params as { id?: string };
+    if (!id) {
+      throw new Error("id path parameter required");
+    }
+    const articles = await searchArticles("");
+    const found = articles.find((a) => String(a.id) === id);
+    if (!found) {
+      return handleNotFound(res, "Article could not be found (invalid article id)");
+    }
+    const scored = await computeSentimentForArticles([found]);
+    const score = scored[0].scores;
+    handleSuccess(res, {
+      articleId: found.id,
+      title: found.title,
+      sentimentScore: Number(score.compound.toFixed(4)),
+      sentimentLabel: labelForCompound(score.compound),
+      publishedAt: found.publishedAt,
+    });
+  } catch (error) {
+    if (error instanceof Error) {
+      handleValidationError(res, error);
+    } else {
+      res.status(500).json({ code: 500, message: "Internal server error" });
+    }
   }
-  const articles = await searchArticles("");
-  const found = articles.find((a) => String(a.id) === id);
-  if (!found) {
-    return res.status(404).json({ code: 404, message: "Article could not be found (invalid article id)" });
-  }
-  const scored = await computeSentimentForArticles([found]);
-  const score = scored[0].scores;
-  res.json({
-    articleId: found.id,
-    title: found.title,
-    sentimentScore: Number(score.compound.toFixed(4)),
-    sentimentLabel: labelForCompound(score.compound),
-    publishedAt: found.publishedAt,
-  });
 };
 
 export const getSentiment = async (req: Request, res: Response) => {
-  const keyword = String(req.query.keyword || "").trim();
-  if (!keyword) {
-    return res.status(400).json({ code: 400, message: "keyword required" });
-  }
-  const sourceId = String(req.query.sourceId || "").trim() || undefined;
-  const timeframe = parseTimeframe(String(req.query.timeframe || "").trim(), "7d");
-  if (!timeframe) {
-    return res.status(400).json({ code: 400, message: "Invalid timeframe parameter" });
-  }
+  try {
+    const keyword = validateRequiredString(req.query.keyword, "keyword");
+    const sourceId = validateOptionalString(req.query.sourceId);
+    const timeframe = parseTimeframe(String(req.query.timeframe || "").trim(), "7d");
+    if (!timeframe) {
+      throw new Error("Invalid timeframe parameter");
+    }
 
-  const matched = filterArticlesByTimeframe(
-    await searchArticles(keyword, sourceId),
-    timeframe,
-  );
-  const scored = await computeSentimentForArticles(matched);
-  const distribution = { positive: 0, neutral: 0, negative: 0 };
-  scored.forEach((entry) => {
-    const label = labelForCompound(entry.scores.compound);
-    distribution[label as keyof typeof distribution] += 1;
-  });
-  const avg =
-    scored.reduce((sum, e) => sum + e.scores.compound, 0) / (scored.length || 1);
-  res.json({
-    keyword,
-    sourceId,
-    timeframe,
-    articleCount: matched.length,
-    averageSentiment: Number(avg.toFixed(4)),
-    distribution,
-  });
+    const matched = filterArticlesByTimeframe(
+      await searchArticles(keyword, sourceId),
+      timeframe,
+    );
+    const scored = await computeSentimentForArticles(matched);
+    const distribution = { positive: 0, neutral: 0, negative: 0 };
+    scored.forEach((entry) => {
+      const label = labelForCompound(entry.scores.compound);
+      distribution[label as keyof typeof distribution] += 1;
+    });
+    const avg =
+      scored.reduce((sum, e) => sum + e.scores.compound, 0) / (scored.length || 1);
+    handleSuccess(res, {
+      keyword,
+      sourceId,
+      timeframe,
+      articleCount: matched.length,
+      averageSentiment: Number(avg.toFixed(4)),
+      distribution,
+    });
+  } catch (error) {
+    if (error instanceof Error) {
+      handleValidationError(res, error);
+    } else {
+      res.status(500).json({ code: 500, message: "Internal server error" });
+    }
+  }
 };
 
 export const getSentimentTrend = async (req: Request, res: Response) => {
@@ -409,41 +475,55 @@ export const getSentimentTrend = async (req: Request, res: Response) => {
 };
 
 export const getTrending = async (req: Request, res: Response) => {
-  const timeframe = parseTimeframe(String(req.query.timeframe || "").trim(), "24h");
-  if (!timeframe) {
-    return res.status(400).json({ code: 400, message: "Invalid timeframe parameter" });
-  }
-  const limit = parseLimit(String(req.query.limit || "10"));
+  try {
+    const timeframe = parseTimeframe(String(req.query.timeframe || "").trim(), "24h");
+    if (!timeframe) {
+      throw new Error("Invalid timeframe parameter");
+    }
+    const limit = parseLimit(String(req.query.limit || "10"));
 
-  const recentArticles = filterArticlesByTimeframe(await loadCleanArticles(), timeframe);
-  const trending = getTrendingKeywords(recentArticles, limit);
-  res.json({ timeframe, keywords: trending });
+    const recentArticles = filterArticlesByTimeframe(await loadCleanArticles(), timeframe);
+    const trending = getTrendingKeywords(recentArticles, limit);
+    handleSuccess(res, { timeframe, keywords: trending });
+  } catch (error) {
+    if (error instanceof Error) {
+      handleValidationError(res, error);
+    } else {
+      res.status(500).json({ code: 500, message: "Internal server error" });
+    }
+  }
 };
 
 export const getSources = async (req: Request, res: Response) => {
-  let limit = parseInt(String(req.query.limit || "50"), 10);
-  if (Number.isNaN(limit) || limit < 1) {
-    limit = 50;
+  try {
+    const { page, limit } = parsePaginationParams(req.query);
+    const timeframe = parseTimeframe(String(req.query.timeframe || "").trim(), "30d");
+    if (!timeframe) {
+      throw new Error("Invalid timeframe parameter");
+    }
+
+    const recentArticles = filterArticlesByTimeframe(await loadCleanArticles(), timeframe);
+    const sources = aggregateSources(recentArticles);
+    
+    const paginatedSources = createPaginatedResult(sources, page || 1, limit || 20, sources.length);
+    
+    handleSuccess(res, {
+      ...paginatedSources,
+      data: paginatedSources.data.map((source) => ({
+        id: source.id,
+        name: source.name,
+        url: source.url,
+        articleCount: source.articleCount,
+        latestPublishedAt: source.latestPublishedAt,
+      })),
+    });
+  } catch (error) {
+    if (error instanceof Error) {
+      handleValidationError(res, error);
+    } else {
+      res.status(500).json({ code: 500, message: "Internal server error" });
+    }
   }
-  limit = Math.min(limit, 100);
-
-  const timeframe = parseTimeframe(String(req.query.timeframe || "").trim(), "30d");
-  if (!timeframe) {
-    return res.status(400).json({ code: 400, message: "Invalid timeframe parameter" });
-  }
-
-  const recentArticles = filterArticlesByTimeframe(await loadCleanArticles(), timeframe);
-  const sources = aggregateSources(recentArticles).slice(0, limit);
-
-  res.json(
-    sources.map((source) => ({
-      id: source.id,
-      name: source.name,
-      url: source.url,
-      articleCount: source.articleCount,
-      latestPublishedAt: source.latestPublishedAt,
-    })),
-  );
 };
 
 const computeSourceSummary = async (
@@ -781,19 +861,24 @@ export const createApiKey = async (req: Request, res: Response) => {
 };
 
 export const revokeApiKey = async (req: Request, res: Response) => {
-  const record = validateApiKey(req);
-  if (!record) {
-    if (activeApiKey && activeApiKey.status === "active") {
-      return res.status(401).json({ code: 401, message: "Missing or invalid API key" });
+  try {
+    const record = validateApiKey(req);
+    if (!record) {
+      if (activeApiKey && activeApiKey.status === "active") {
+        return handleValidationError(res, new Error("Missing or invalid API key"));
+      }
+      return handleNotFound(res, "No active API key found for this user");
     }
-    return res
-      .status(404)
-      .json({ code: 404, message: "No active API key found for this user" });
-  }
 
-  record.status = "revoked";
-  const revokedAt = new Date().toISOString();
-  res.json({ keyId: record.keyId, revokedAt, message: "API key revoked successfully" });
+    record.status = "revoked";
+    handleNoContent(res);
+  } catch (error) {
+    if (error instanceof Error) {
+      handleValidationError(res, error);
+    } else {
+      res.status(500).json({ code: 500, message: "Internal server error" });
+    }
+  }
 };
 
 export const getArticleVolumeTrend = async (req: Request, res: Response) => {
