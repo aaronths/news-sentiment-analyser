@@ -153,7 +153,15 @@ describe("articles.service helpers and storage behavior", () => {
     const { computeSentimentForArticles } = await import("../src/services/articles.service");
 
     const [result] = await computeSentimentForArticles([
-      { id: "x", title: "Good news", body: "Great product", sentimentText: "Great!" },
+      { 
+        id: "x", 
+        title: "Good news", 
+        body: "Great product", 
+        sentimentText: "Great!",
+        sourceId: "test-source",
+        sourceName: "Test Source",
+        publishedAt: "2023-01-01T00:00:00Z"
+      },
     ]);
 
     expect(result.scores.compound).toBeDefined();
