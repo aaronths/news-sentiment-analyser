@@ -1,32 +1,39 @@
 import axios from 'axios';
-import dotenv from 'dotenv';
-import path from 'path';
 
-// Default to 'local' if NODE_ENV isn't set + load the corresponding .env file
-const env = process.env.NODE_ENV || 'local';
-const envFile = `.env.${env}`;
-// look for the .env file in the project root (3 levels up from src/)
-const envPath = path.resolve(__dirname, '../../../', envFile);
-dotenv.config({ path: envPath });
+// 1. Read the target environment (injected by the Express route)
+const targetEnv = process.env.TEST_TARGET_ENV || 'local';
 
-// grab variables
-const baseURL = process.env.TARGET_API_URL;
-const apiKey = process.env.X_API_KEY;
+// 2. Map environments to their specific AWS URLs and Keys
+// (You will set the actual API keys in the AWS Lambda Environment Variables console)
+const ENV_CONFIG = {
+  local: { 
+    url: 'http://localhost:8001', 
+    key: process.env.LOCAL_API_KEY 
+  },
+  dev: { 
+    url: 'https://mbqiv0owad.execute-api.us-east-1.amazonaws.com/dev', 
+    key: process.env.DEV_API_KEY 
+  },
+  prod: { 
+    url: 'https://mbqiv0owad.execute-api.us-east-1.amazonaws.com/prod', 
+    key: process.env.PROD_API_KEY 
+  }
+};
 
-// validate url
-if (!baseURL) {
-  throw new Error(`❌ TARGET_API_URL is missing in ${envFile}`);
+const config = ENV_CONFIG[targetEnv as keyof typeof ENV_CONFIG] || ENV_CONFIG.local;
+
+if (!config.url) {
+  throw new Error(`❌ Missing URL configuration for environment: ${targetEnv}`);
 }
 
-// create the client
+// 3. Export the singleton client that the tests will use
 export const api = axios.create({
-  baseURL: baseURL, // TypeScript now knows this is definitely a string
+  baseURL: config.url,
   headers: {
     'Content-Type': 'application/json',
-    ...(apiKey ? { 'X-API-Key': apiKey } : {})
+    ...(config.key ? { 'X-API-Key': config.key } : {})
   },
-  timeout: process.env.NODE_ENV === 'local' ? 30000 : 60000 // 60s for Cloud
+  timeout: 30000
 });
 
-console.log(`Testing Environment: ${env.toUpperCase()}`);
-console.log(`Target URL: ${baseURL}`);
+console.log(`🧪 Test Client Initialized -> Target: ${targetEnv.toUpperCase()} (${config.url})`);
