@@ -22,6 +22,21 @@ describe("utils/logger", () => {
     expect(payload.timestamp).toBeDefined();
   });
 
+  it("logger.info works with default context", () => {
+    const logSpy = jest.spyOn(console, "log").mockImplementation(() => {});
+
+    logger.info("No context");
+
+    expect(logSpy).toHaveBeenCalledTimes(1);
+
+    const raw = logSpy.mock.calls[0][0] as string;
+    const payload = JSON.parse(raw);
+
+    expect(payload.level).toBe("INFO");
+    expect(payload.message).toBe("No context");
+    expect(payload.timestamp).toBeDefined();
+  });
+
   it("logger.error logs a structured ERROR message with error text", () => {
     const errorSpy = jest.spyOn(console, "error").mockImplementation(() => {});
 
@@ -36,6 +51,22 @@ describe("utils/logger", () => {
     expect(payload.message).toBe("Test error");
     expect(payload.error).toBe("Something failed");
     expect(payload.route).toBe("/health");
+    expect(payload.timestamp).toBeDefined();
+  });
+
+  it("logger.error handles non-Error values (string branch)", () => {
+    const errorSpy = jest.spyOn(console, "error").mockImplementation(() => {});
+
+    logger.error("String error", "plain failure");
+
+    expect(errorSpy).toHaveBeenCalledTimes(1);
+
+    const raw = errorSpy.mock.calls[0][0] as string;
+    const payload = JSON.parse(raw);
+
+    expect(payload.level).toBe("ERROR");
+    expect(payload.message).toBe("String error");
+    expect(payload.error).toBe("plain failure");
     expect(payload.timestamp).toBeDefined();
   });
 });

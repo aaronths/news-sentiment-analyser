@@ -207,9 +207,6 @@ export async function buildDistributionChartConfig(
           display: true,
           text: `Sentiment distribution for \"${keyword}\"`,
         },
-        // chartjs-plugin-datalabels is unstable for doughnut rendering in
-        // headless node-canvas; keep labels off for this chart type.
-        datalabels: { display: false },
       },
     },
   };
