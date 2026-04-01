@@ -5,6 +5,11 @@ import { describe, it, expect, afterAll, beforeAll, jest } from "@jest/globals";
 import { S3Client } from "@aws-sdk/client-s3";
 import { app, server } from "../src/main";
 
+let authApiKey = "";
+
+const apiGet = (route: string) => request(app).get(route).set("X-API-Key", authApiKey);
+const apiDelete = (route: string) => request(app).delete(route).set("X-API-Key", authApiKey);
+
 // ensure the HTTP server is closed after tests
 afterAll((done) => {
   if (!server) {
@@ -89,6 +94,13 @@ beforeAll(() => {
   fs.writeFileSync(dataPath, JSON.stringify(sample));
 });
 
+beforeAll(async () => {
+  const res = await request(app).post("/api/auth/key").send({ label: "suite bootstrap key" });
+  expect(res.status).toBe(201);
+  expect(res.body.key).toBeDefined();
+  authApiKey = res.body.key;
+});
+
 describe("GET /api/test", () => {
   it("should return success: true", async () => {
     const res = await request(app).get("/api/test");
@@ -124,16 +136,20 @@ describe("Swagger endpoints", () => {
     process.env.NEWS_DATA_BUCKET = "";
   });
 
+  it("GET /api/articles returns 401 without API key", async () => {
+      const res = await request(app).get("/api/articles").query({ keyword: "economy" });
+      expect(res.status).toBe(401);
+    });
+
   it("GET /api/articles should require keyword", async () => {
-    const res = await request(app).get("/api/articles");
+      const res = await apiGet("/api/articles");
     expect(res.status).toBe(400);
   });
 
   let firstArticleId: string;
 
   it("GET /api/articles with keyword returns matching list", async () => {
-    const res = await request(app)
-      .get("/api/articles")
+      const res = await apiGet("/api/articles")
       .query({ keyword: "economy" });
 
     expect(res.status).toBe(200);
@@ -142,8 +158,7 @@ describe("Swagger endpoints", () => {
     expect(res.body.totalMatches).toBeGreaterThan(0);
 
     // fetch metadata to obtain an article ID for subsequent tests
-    const meta = await request(app)
-      .get("/api/articles/metadata")
+      const meta = await apiGet("/api/articles/metadata")
       .query({ keyword: "economy" });
     expect(meta.status).toBe(200);
     if (Array.isArray(meta.body.data) && meta.body.data.length > 0) {
@@ -153,24 +168,23 @@ describe("Swagger endpoints", () => {
 
   it("GET /api/articles/:id returns object when present", async () => {
     expect(firstArticleId).toBeDefined();
-    const res = await request(app).get(`/api/articles/${firstArticleId}`);
+      const res = await apiGet(`/api/articles/${firstArticleId}`);
     expect(res.status).toBe(200);
     expect(res.body.id).toBe(firstArticleId);
   });
 
   it("GET /api/articles/:id returns 404 if missing", async () => {
-    const res = await request(app).get("/api/articles/doesnotexist");
+      const res = await apiGet("/api/articles/doesnotexist");
     expect(res.status).toBe(404);
   });
 
   it("GET /api/sentiment requires keyword", async () => {
-    const res = await request(app).get("/api/sentiment");
+      const res = await apiGet("/api/sentiment");
     expect(res.status).toBe(400);
   });
 
   it("GET /api/sentiment with keyword returns object", async () => {
-    const res = await request(app)
-      .get("/api/sentiment")
+      const res = await apiGet("/api/sentiment")
       .query({ keyword: "inflation" });
     expect(res.status).toBe(200);
     expect(res.body.keyword).toBe("inflation");
@@ -178,8 +192,7 @@ describe("Swagger endpoints", () => {
   });
 
   it("GET /api/sentiment uses precomputed score when provided", async () => {
-    const res = await request(app)
-      .get("/api/sentiment")
+      const res = await apiGet("/api/sentiment")
       .query({ keyword: "customscore" });
 
     expect(res.status).toBe(200);
@@ -189,8 +202,7 @@ describe("Swagger endpoints", () => {
   });
 
   it("GET /api/charts/rankings with keyword returns Chart.js config", async () => {
-    const res = await request(app)
-      .get("/api/charts/rankings")
+      const res = await apiGet("/api/charts/rankings")
       .query({ keyword: "economy" });
 
     expect(res.status).toBe(200);
@@ -199,8 +211,7 @@ describe("Swagger endpoints", () => {
   });
 
   it("GET /api/charts/rankings.png with keyword returns image", async () => {
-    const res = await request(app)
-      .get("/api/charts/rankings.png")
+      const res = await apiGet("/api/charts/rankings.png")
       .query({ keyword: "economy" });
 
     expect(res.status).toBe(200);
@@ -209,48 +220,46 @@ describe("Swagger endpoints", () => {
   });
 
   it("GET /api/charts/rankings returns 400 without keyword", async () => {
-    const res = await request(app).get("/api/charts/rankings");
+      const res = await apiGet("/api/charts/rankings");
     expect(res.status).toBe(400);
   });
 
   it("GET /api/charts/distribution returns 400 without keyword", async () => {
-    const res = await request(app).get("/api/charts/distribution");
+      const res = await apiGet("/api/charts/distribution");
     expect(res.status).toBe(400);
   });
 
   it("GET /api/charts/rankings.png returns 400 without keyword", async () => {
-    const res = await request(app).get("/api/charts/rankings.png");
+      const res = await apiGet("/api/charts/rankings.png");
     expect(res.status).toBe(400);
   });
 
   it("GET /api/charts/distribution.png returns 400 without keyword", async () => {
-    const res = await request(app).get("/api/charts/distribution.png");
+      const res = await apiGet("/api/charts/distribution.png");
     expect(res.status).toBe(400);
   });
 
   it("GET /api/sources returns indexed source list", async () => {
-    const res = await request(app).get("/api/sources").query({ limit: 5 });
+      const res = await apiGet("/api/sources").query({ limit: 5 });
     expect(res.status).toBe(200);
     expect(Array.isArray(res.body.data)).toBe(true);
   });
 
   it("GET /api/trending returns keyword frequencies", async () => {
-    const res = await request(app).get("/api/trending").query({ timeframe: "30d", limit: 5 });
+      const res = await apiGet("/api/trending").query({ timeframe: "30d", limit: 5 });
     expect(res.status).toBe(200);
     expect(res.body.timeframe).toBe("30d");
     expect(Array.isArray(res.body.keywords)).toBe(true);
   });
 
   it("GET /api/sentiment/source requires sourceId", async () => {
-    const res = await request(app)
-      .get("/api/sentiment/source")
+      const res = await apiGet("/api/sentiment/source")
       .query({ keyword: "economy" });
     expect(res.status).toBe(400);
   });
 
   it("GET /api/sentiment/source returns source summary", async () => {
-    const res = await request(app)
-      .get("/api/sentiment/source")
+      const res = await apiGet("/api/sentiment/source")
       .query({ keyword: "economy", sourceId: "test", timeframe: "30d" });
     expect(res.status).toBe(200);
     expect(res.body.sourceId).toBe("test");
@@ -258,16 +267,14 @@ describe("Swagger endpoints", () => {
   });
 
   it("GET /api/sentiment/compare returns comparison payload", async () => {
-    const res = await request(app)
-      .get("/api/sentiment/compare")
+      const res = await apiGet("/api/sentiment/compare")
       .query({ keyword: "economy", timeframe: "30d" });
     expect(res.status).toBe(200);
     expect(Array.isArray(res.body.comparisons)).toBe(true);
   });
 
   it("GET /api/chart/sentiment/trend returns chart-ready payload", async () => {
-    const res = await request(app)
-      .get("/api/chart/sentiment/trend")
+      const res = await apiGet("/api/chart/sentiment/trend")
       .query({ keyword: "economy", timeframe: "30d" });
     expect(res.status).toBe(200);
     expect(res.body.chartType).toBe("line");
@@ -276,8 +283,7 @@ describe("Swagger endpoints", () => {
   });
 
   it("GET /api/chart/sources/compare returns chart-ready payload", async () => {
-    const res = await request(app)
-      .get("/api/chart/sources/compare")
+      const res = await apiGet("/api/chart/sources/compare")
       .query({ keyword: "economy", timeframe: "30d" });
     expect(res.status).toBe(200);
     expect(res.body.chartType).toBe("bar");
@@ -287,8 +293,7 @@ describe("Swagger endpoints", () => {
 
   it("GET /api/chart/mentions/monthly returns grouped monthly mentions chart", async () => {
     const year = new Date().getUTCFullYear();
-    const res = await request(app)
-      .get("/api/chart/mentions/monthly")
+      const res = await apiGet("/api/chart/mentions/monthly")
       .query({ keyword: "Trump", year, sourceLimit: 5 });
 
     expect(res.status).toBe(200);
@@ -304,8 +309,7 @@ describe("Swagger endpoints", () => {
 
   it("GET /api/chart/mentions/monthly.png returns image", async () => {
     const year = new Date().getUTCFullYear();
-    const res = await request(app)
-      .get("/api/chart/mentions/monthly.png")
+      const res = await apiGet("/api/chart/mentions/monthly.png")
       .query({ keyword: "Trump", year, sourceLimit: 5 });
 
     expect(res.status).toBe(200);
@@ -314,8 +318,7 @@ describe("Swagger endpoints", () => {
   });
 
   it("GET /api/chart/mentions/monthly returns 400 when year is invalid", async () => {
-    const res = await request(app)
-      .get("/api/chart/mentions/monthly")
+      const res = await apiGet("/api/chart/mentions/monthly")
       .query({ keyword: "Trump", year: "not-a-year", sourceLimit: 5 });
 
     expect(res.status).toBe(400);
@@ -323,8 +326,7 @@ describe("Swagger endpoints", () => {
 
   it("GET /api/chart/mentions/monthly works with multi-word keyword", async () => {
     const year = new Date().getUTCFullYear();
-    const res = await request(app)
-      .get("/api/chart/mentions/monthly")
+      const res = await apiGet("/api/chart/mentions/monthly")
       .query({ keyword: "Trump rally", year, sourceLimit: 5 });
 
     expect(res.status).toBe(200);
@@ -333,7 +335,7 @@ describe("Swagger endpoints", () => {
 
   it("GET /api/articles/:id/sentiment returns sentiment data", async () => {
     expect(firstArticleId).toBeDefined();
-    const res = await request(app).get(`/api/articles/${firstArticleId}/sentiment`);
+      const res = await apiGet(`/api/articles/${firstArticleId}/sentiment`);
     expect(res.status).toBe(200);
     expect(res.body.sentimentScore).toBeDefined();
   });
@@ -347,7 +349,7 @@ describe("Swagger endpoints", () => {
 
 describe("Trend endpoint", () => {
   it("GET /api/trend returns volume series", async () => {
-    const res = await request(app).get("/api/trend").query({ keyword: "economy" });
+    const res = await apiGet("/api/trend").query({ keyword: "economy" });
     expect(res.status).toBe(200);
     expect(res.body.keyword).toBe("economy");
     expect(typeof res.body.totalArticles).toBe("number");
@@ -357,6 +359,12 @@ describe("Trend endpoint", () => {
 
 describe("API key endpoints", () => {
   let apiKey: string;
+
+  beforeAll(async () => {
+    const revoke = await apiDelete("/api/auth/key");
+    expect([204, 404]).toContain(revoke.status);
+    authApiKey = "";
+  });
 
   it("POST /api/auth/key creates a new key", async () => {
     const res = await request(app).post("/api/auth/key").send({ label: "test key" });
