@@ -1,6 +1,4 @@
 import type { ChartConfiguration } from "chart.js";
-import { ChartJSNodeCanvas } from "chartjs-node-canvas";
-import ChartDataLabels from "chartjs-plugin-datalabels";
 import {
   computeSentimentForArticles,
   labelForCompound,
