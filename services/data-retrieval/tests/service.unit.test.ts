@@ -441,3 +441,137 @@ describe("charts.service helpers", () => {
     expect(png.length).toBeGreaterThan(0);
   });
 });
+
+
+
+describe("articles.service additional branch coverage", () => {
+  const branchTempDir = fs.mkdtempSync(path.join(os.tmpdir(), "data-retrieval-branch-"));
+  const missingPath = path.join(branchTempDir, "does-not-exist.json");
+  const validPath = path.join(branchTempDir, "valid-clean.json");
+
+  beforeAll(() => {
+    fs.writeFileSync(
+      validPath,
+      JSON.stringify([
+        {
+          id: "p1",
+          sourceId: "src-1",
+          sourceName: "Source 1",
+          title: "Stable article",
+          body: "Body",
+          publishedAt: "2025-01-01T00:00:00.000Z",
+          keywordTokens: ["stable"],
+          sentiment: 0.42,
+        },
+      ])
+    );
+  });
+
+  afterAll(() => {
+    try {
+      fs.rmSync(branchTempDir, { recursive: true, force: true });
+    } catch {
+      // ignore cleanup failures
+    }
+  });
+
+  afterEach(() => {
+    delete process.env.NEWS_DATA_BUCKET;
+    delete process.env.NEWS_DATA_STORAGE_MODE;
+    delete process.env.NEWS_DATA_LOCAL_CLEAN_PATH;
+    jest.resetModules();
+    jest.restoreAllMocks();
+  });
+
+  it("loadCleanArticles returns [] when local file path is missing/unreadable", async () => {
+    process.env.NEWS_DATA_STORAGE_MODE = "local-file";
+    process.env.NEWS_DATA_LOCAL_CLEAN_PATH = missingPath;
+
+    const { loadCleanArticles } = await import("../src/services/articles.service");
+    const data = await loadCleanArticles();
+
+    expect(Array.isArray(data)).toBe(true);
+    expect(data).toEqual([]);
+  });
+
+  it("loadCleanArticles falls back to local when S3 returns no Body", async () => {
+    process.env.NEWS_DATA_STORAGE_MODE = "s3";
+    process.env.NEWS_DATA_BUCKET = "bucket";
+    process.env.NEWS_DATA_LOCAL_CLEAN_PATH = validPath;
+
+    const { S3Client } = await import("@aws-sdk/client-s3");
+    const sendSpy = (jest
+      .spyOn(S3Client.prototype as unknown as { send: (...args: unknown[]) => Promise<unknown> }, "send")
+      .mockResolvedValue({})) as unknown as ReturnType<typeof jest.spyOn>;
+
+    const { loadCleanArticles } = await import("../src/services/articles.service");
+    const data = await loadCleanArticles();
+
+    expect(data).toHaveLength(1);
+    expect(data[0].id).toBe("p1");
+    expect(sendSpy).toHaveBeenCalled();
+  });
+
+  it("computeSentimentForArticles keeps finite precomputed sentiment", async () => {
+    const { computeSentimentForArticles } = await import("../src/services/articles.service");
+
+    const [result] = await computeSentimentForArticles([
+      {
+        id: "precomputed",
+        sourceId: "src-1",
+        sourceName: "Source 1",
+        title: "Any",
+        body: "Any",
+        publishedAt: "2025-01-01T00:00:00.000Z",
+        sentiment: 0.42,
+      },
+    ]);
+
+    expect(result.scores.compound).toBeCloseTo(0.42, 5);
+  });
+
+  it("parsePaginationParams clamps invalid page and limit values", async () => {
+    const { parsePaginationParams } = await import("../src/services/articles.service");
+
+    const params = parsePaginationParams({ page: "-10", limit: "9999" });
+
+    expect(params.page).toBe(1);
+    expect(params.limit).toBe(100);
+    expect(params.offset).toBe(0);
+  });
+
+  it("createPaginatedResult marks last page correctly", async () => {
+    const { createPaginatedResult } = await import("../src/services/articles.service");
+
+    const result = createPaginatedResult([1, 2, 3, 4, 5], 3, 2, 5);
+
+    expect(result.data).toEqual([5]);
+    expect(result.pagination.totalPages).toBe(3);
+    expect(result.pagination.hasNext).toBe(false);
+    expect(result.pagination.hasPrev).toBe(true);
+  });
+
+  it("filterArticlesByDateRange supports endDate-only filtering", async () => {
+    const { filterArticlesByDateRange } = await import("../src/services/articles.service");
+
+    const articles = [
+      {
+        id: "old",
+        sourceId: "s",
+        sourceName: "S",
+        title: "Old",
+        publishedAt: "2025-01-01T00:00:00.000Z",
+      },
+      {
+        id: "new",
+        sourceId: "s",
+        sourceName: "S",
+        title: "New",
+        publishedAt: "2025-12-01T00:00:00.000Z",
+      },
+    ];
+
+    const filtered = filterArticlesByDateRange(articles, undefined, "2025-06-01");
+    expect(filtered.map((a) => a.id)).toEqual(["old"]);
+  });
+});
