@@ -61,5 +61,5 @@ retrievalRouter.get("/chart/mentions/monthly.png", getMonthlyMentionsBySourceCha
 retrievalRouter.get("/trend", getArticleVolumeTrend);
 
 retrievalRouter.get("/auth/key", validateApiKey, getApiKey);
-retrievalRouter.post("/auth/key", validateApiKey, createApiKey);
+retrievalRouter.post("/auth/key", createApiKey);
 retrievalRouter.delete("/auth/key", validateApiKey, revokeApiKey);

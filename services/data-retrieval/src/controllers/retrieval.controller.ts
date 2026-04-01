@@ -1,5 +1,5 @@
 import crypto from "crypto";
-import { Request, Response } from "express";
+import { NextFunction, Request, Response } from "express";
 import type { ChartConfiguration } from "chart.js";
 import {
   aggregateSources,
@@ -941,7 +941,7 @@ function getApiKeyFromRequest(req: Request): string | null {
   return typeof header === "string" ? header : null;
 }
 
-export function validateApiKey(req: Request): ApiKeyRecord | null {
+function resolveApiKeyRecord(req: Request): ApiKeyRecord | null {
   const key = getApiKeyFromRequest(req);
   if (!key || !activeApiKey || activeApiKey.status !== "active") return null;
   if (key !== activeApiKey.key) return null;
@@ -949,8 +949,27 @@ export function validateApiKey(req: Request): ApiKeyRecord | null {
   return activeApiKey;
 }
 
+type AuthenticatedRequest = Request & { apiKeyRecord?: ApiKeyRecord };
+
+export const validateApiKey = (req: Request, res: Response, next: NextFunction) => {
+  const record = resolveApiKeyRecord(req);
+  if (!record) {
+    if (activeApiKey && activeApiKey.status === "revoked") {
+      logger.info("API key lookup failed - key revoked");
+      return res
+        .status(404)
+        .json({ code: 404, message: "No active API key found for this user" });
+    }
+    logger.info("API key lookup failed - missing or invalid key");
+    return res.status(401).json({ code: 401, message: "Missing or invalid API key" });
+  }
+
+  (req as AuthenticatedRequest).apiKeyRecord = record;
+  next();
+};
+
 export const getApiKey = async (req: Request, res: Response) => {
-  const record = validateApiKey(req);
+  const record = (req as AuthenticatedRequest).apiKeyRecord || resolveApiKeyRecord(req);
   if (!record) {
     if (activeApiKey && activeApiKey.status === "revoked") {
       logger.info("API key lookup failed - key revoked");
@@ -1004,7 +1023,7 @@ export const createApiKey = async (req: Request, res: Response) => {
 
 export const revokeApiKey = async (req: Request, res: Response) => {
   try {
-    const record = validateApiKey(req);
+    const record = (req as AuthenticatedRequest).apiKeyRecord || resolveApiKeyRecord(req);
     if (!record) {
       if (activeApiKey && activeApiKey.status === "active") {
         logger.info("API key revoke failed - missing or invalid key");
