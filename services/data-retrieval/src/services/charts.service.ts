@@ -122,7 +122,6 @@ export async function buildRankingsChartConfig(
   const labels = rankings.map((ranking) => ranking.sourceName);
   const values = rankings.map((ranking) => ranking.averageCompound);
   const colors = values.map((value) => (value >= 0 ? "#2a9d8f" : "#e76f51"));
-  const hasData = values.length > 0;
 
   return {
     type: "bar",
@@ -145,18 +144,7 @@ export async function buildRankingsChartConfig(
           display: true,
           text: `Average sentiment by source for \"${keyword}\"`,
         },
-        legend: { display: false },
-        datalabels: hasData
-          ? {
-              anchor: "end",
-              align: "top",
-              color: "#111827",
-              font: {
-                weight: "bold",
-              },
-              formatter: (value: number) => Number(value).toFixed(3),
-            }
-          : { display: false },
+        legend: { display: false }
       },
       scales: {
         y: {
@@ -206,7 +194,7 @@ export async function buildDistributionChartConfig(
         title: {
           display: true,
           text: `Sentiment distribution for \"${keyword}\"`,
-        },
+        }
       },
     },
   };
