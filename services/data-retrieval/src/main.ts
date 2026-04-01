@@ -43,8 +43,9 @@ const swaggerUiOptions = {
 app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument, swaggerUiOptions));
 
 // --- THE LAMBDA HANDLER ---
-export const handler = serverless(app);
-
+export const handler = serverless(app, {
+  binary: ['image/png', 'image/*']
+});
 // --- LOCAL SERVER LOGIC ---
 // Only start the local listener if NOT in AWS Lambda
 export const server = (!process.env.AWS_EXECUTION_ENV && shouldListen)

@@ -6,6 +6,7 @@ import {
   labelForCompound,
   searchArticles,
 } from "./articles.service";
+import { logger } from "../utils/logger";
 
 type SentimentBucket = "positive" | "neutral" | "negative";
 
@@ -221,14 +222,18 @@ export async function renderChartToPng(
   width: number,
   height: number
 ): Promise<Buffer> {
-  const renderer = new ChartJSNodeCanvas({
-    width,
-    height,
-    backgroundColour: "white",
-    chartCallback: (ChartJS) => {
-      ChartJS.register(ChartDataLabels);
-    },
-  });
-
-  return renderer.renderToBuffer(chartConfig);
+  // 1. Convert your Chart.js config into a URL-friendly string
+  const configString = encodeURIComponent(JSON.stringify(chartConfig));
+  logger.info(configString)
+  // 2. Call the QuickChart API
+  const url = `https://quickchart.io/chart?c=${configString}&w=${width}&h=${height}&f=png`;
+  
+  // 3. Fetch the image and return it as a Buffer
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error("Failed to render chart image");
+  }
+  
+  const arrayBuffer = await response.arrayBuffer();
+  return Buffer.from(arrayBuffer);
 }
