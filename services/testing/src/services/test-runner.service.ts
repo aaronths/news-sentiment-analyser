@@ -73,6 +73,7 @@ export const runSuite = async (input: RunTestsInput): Promise<RunTestsResult> =>
         env: {
           ...process.env,
           NODE_ENV: environment,
+          TEST_TARGET_ENV: environment,
         },
       });
 
