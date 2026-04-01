@@ -841,62 +841,84 @@ export const getMonthlyMentionsBySourceChart = async (req: Request, res: Respons
 };
 
 export const getMonthlyMentionsBySourceChartImage = async (req: Request, res: Response) => {
-  const keyword = String(req.query.keyword || "").trim();
-  if (!keyword) {
-    return res.status(400).json({ code: 400, message: "keyword required" });
-  }
+  try {
+    const keyword = validateRequiredString(req.query.keyword, "keyword");
+    const year = parseYear(String(req.query.year || ""), new Date().getUTCFullYear());
+    if (!year) {
+      throw new Error("Invalid year parameter");
+    }
 
-  const year = parseYear(String(req.query.year || ""), new Date().getUTCFullYear());
-  if (!year) {
-    return res.status(400).json({ code: 400, message: "Invalid year parameter" });
-  }
+    const sourceLimit = parseSourceLimit(String(req.query.sourceLimit || ""), 6);
+    const width = parseChartDimension(String(req.query.width || ""), 1400, 400, 2600);
+    const height = parseChartDimension(String(req.query.height || ""), 800, 300, 1600);
 
-  const sourceLimit = parseSourceLimit(String(req.query.sourceLimit || ""), 6);
-  const width = parseChartDimension(String(req.query.width || ""), 1400, 400, 2600);
-  const height = parseChartDimension(String(req.query.height || ""), 800, 300, 1600);
+    const chartPayload = await buildMonthlyMentionsBySourceChartPayload(keyword, year, sourceLimit);
 
-  const chartPayload = await buildMonthlyMentionsBySourceChartPayload(keyword, year, sourceLimit);
-
-  const chartConfig: ChartConfiguration = {
-    type: "bar",
-    data: {
-      labels: chartPayload.labels,
-      datasets: chartPayload.datasets,
-    },
-    options: {
-      responsive: false,
-      plugins: {
-        title: {
-          display: true,
-          text: `Monthly title mentions for \"${keyword}\" in ${year}`,
-        },
-        legend: {
-          display: true,
-          position: "bottom",
-        },
+    const chartConfig: ChartConfiguration = {
+      type: "bar",
+      data: {
+        labels: chartPayload.labels,
+        datasets: chartPayload.datasets,
       },
-      scales: {
-        x: {
+      options: {
+        responsive: false,
+        plugins: {
           title: {
             display: true,
-            text: "Month",
+            text: `Monthly title mentions for \"${keyword}\" in ${year}`,
+          },
+          legend: {
+            display: true,
+            position: "bottom",
           },
         },
-        y: {
-          beginAtZero: true,
-          title: {
-            display: true,
-            text: "Title mentions",
+        scales: {
+          x: {
+            title: {
+              display: true,
+              text: "Month",
+            },
+          },
+          y: {
+            beginAtZero: true,
+            title: {
+              display: true,
+              text: "Title mentions",
+            },
           },
         },
       },
-    },
-  };
+    };
 
-  const image = await renderChartToPng(chartConfig, width, height);
-  res.setHeader("Content-Type", "image/png");
-  res.setHeader("Cache-Control", "no-store");
-  res.send(image);
+    const image = await renderChartToPng(chartConfig, width, height);
+
+    logger.info("Successfully rendered monthly mentions chart image", {
+      keyword,
+      year,
+      sourceLimit,
+      width,
+      height,
+      sourcesCompared: chartPayload.meta.sourcesCompared,
+    });
+
+    res.setHeader("Content-Type", "image/png");
+    res.setHeader("Cache-Control", "no-store");
+    res.send(image);
+  } catch (error) {
+    logger.error("Failed to render monthly mentions chart image", error, {
+      keyword: req.query.keyword,
+      year: req.query.year,
+      sourceLimit: req.query.sourceLimit,
+      width: req.query.width,
+      height: req.query.height,
+    });
+
+    if (error instanceof Error) {
+      handleValidationError(res, error);
+    } else {
+      res.status(500).json({ code: 500, message: "Internal server error" });
+    }
+  }
 };
 
 const KEY_HEADER = "x-api-key";
