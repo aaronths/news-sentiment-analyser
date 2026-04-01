@@ -1,8 +1,12 @@
 {
   "name": "testing",
   "version": "1.0.0",
-  "main": "index.js",
+  "main": "dist/main.js",
   "scripts": {
+    "dev": "cross-env NODE_ENV=local ts-node-dev --transpile-only src/main.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/main.js",
+    "test": "jest",
     "test:local": "cross-env NODE_ENV=local jest",
     "test:dev": "cross-env NODE_ENV=dev jest",
     "test:prod": "cross-env NODE_ENV=prod jest"
@@ -11,15 +15,22 @@
   "author": "",
   "license": "ISC",
   "description": "",
+  "dependencies": {
+    "axios": "^1.14.0",
+    "cors": "^2.8.5",
+    "dotenv": "^17.3.1",
+    "express": "^4.21.2"
+  },
   "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^4.17.23",
     "@types/jest": "^30.0.0",
     "@types/node": "^25.5.0",
-    "axios": "^1.14.0",
     "cross-env": "^10.1.0",
-    "dotenv": "^17.3.1",
     "jest": "^30.3.0",
     "ts-jest": "^29.4.6",
     "ts-node": "^10.9.2",
+    "ts-node-dev": "^2.0.0",
     "typescript": "^5.7.3"
   }
 }
