@@ -1,0 +1,25 @@
+{
+  "name": "testing",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "test:local": "cross-env NODE_ENV=local jest",
+    "test:dev": "cross-env NODE_ENV=dev jest",
+    "test:prod": "cross-env NODE_ENV=prod jest"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "devDependencies": {
+    "@types/jest": "^30.0.0",
+    "@types/node": "^25.5.0",
+    "axios": "^1.14.0",
+    "cross-env": "^10.1.0",
+    "dotenv": "^17.3.1",
+    "jest": "^30.3.0",
+    "ts-jest": "^29.4.6",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.7.3"
+  }
+}
