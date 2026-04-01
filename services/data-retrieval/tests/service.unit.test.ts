@@ -423,9 +423,6 @@ describe("charts.service helpers", () => {
     const config = await buildRankingsChartConfig("whatever");
 
     expect(config.data.datasets[0].data).toEqual([]);
-    type ChartPlugins = { datalabels?: { display: boolean } };
-    const plugins = config.options?.plugins as ChartPlugins | undefined;
-    expect(plugins?.datalabels).toEqual({ display: false });
   });
 
   it("renderChartToPng produces a non-empty buffer", async () => {

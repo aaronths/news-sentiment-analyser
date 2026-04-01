@@ -1,11 +1,10 @@
 import type { ChartConfiguration } from "chart.js";
-import { ChartJSNodeCanvas } from "chartjs-node-canvas";
-import ChartDataLabels from "chartjs-plugin-datalabels";
 import {
   computeSentimentForArticles,
   labelForCompound,
   searchArticles,
 } from "./articles.service";
+import { logger } from "../utils/logger";
 
 type SentimentBucket = "positive" | "neutral" | "negative";
 
@@ -123,7 +122,6 @@ export async function buildRankingsChartConfig(
   const labels = rankings.map((ranking) => ranking.sourceName);
   const values = rankings.map((ranking) => ranking.averageCompound);
   const colors = values.map((value) => (value >= 0 ? "#2a9d8f" : "#e76f51"));
-  const hasData = values.length > 0;
 
   return {
     type: "bar",
@@ -146,18 +144,7 @@ export async function buildRankingsChartConfig(
           display: true,
           text: `Average sentiment by source for \"${keyword}\"`,
         },
-        legend: { display: false },
-        datalabels: hasData
-          ? {
-              anchor: "end",
-              align: "top",
-              color: "#111827",
-              font: {
-                weight: "bold",
-              },
-              formatter: (value: number) => Number(value).toFixed(3),
-            }
-          : { display: false },
+        legend: { display: false }
       },
       scales: {
         y: {
@@ -207,10 +194,7 @@ export async function buildDistributionChartConfig(
         title: {
           display: true,
           text: `Sentiment distribution for \"${keyword}\"`,
-        },
-        // chartjs-plugin-datalabels is unstable for doughnut rendering in
-        // headless node-canvas; keep labels off for this chart type.
-        datalabels: { display: false },
+        }
       },
     },
   };
@@ -221,14 +205,15 @@ export async function renderChartToPng(
   width: number,
   height: number
 ): Promise<Buffer> {
-  const renderer = new ChartJSNodeCanvas({
-    width,
-    height,
-    backgroundColour: "white",
-    chartCallback: (ChartJS) => {
-      ChartJS.register(ChartDataLabels);
-    },
-  });
-
-  return renderer.renderToBuffer(chartConfig);
+  const configString = encodeURIComponent(JSON.stringify(chartConfig));
+  logger.info(configString)
+  const url = `https://quickchart.io/chart?c=${configString}&w=${width}&h=${height}&f=png`;
+  
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error("Failed to render chart image");
+  }
+  
+  const arrayBuffer = await response.arrayBuffer();
+  return Buffer.from(arrayBuffer);
 }
