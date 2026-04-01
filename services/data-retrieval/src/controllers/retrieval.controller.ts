@@ -941,7 +941,7 @@ function getApiKeyFromRequest(req: Request): string | null {
   return typeof header === "string" ? header : null;
 }
 
-function validateApiKey(req: Request): ApiKeyRecord | null {
+export function validateApiKey(req: Request): ApiKeyRecord | null {
   const key = getApiKeyFromRequest(req);
   if (!key || !activeApiKey || activeApiKey.status !== "active") return null;
   if (key !== activeApiKey.key) return null;

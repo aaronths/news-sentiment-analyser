@@ -19,6 +19,7 @@ import {
   getApiKey,
   createApiKey,
   revokeApiKey,
+  validateApiKey,
 } from "../controllers/retrieval.controller";
 import {
   getDistributionChartData,
@@ -59,6 +60,6 @@ retrievalRouter.get("/chart/mentions/monthly.png", getMonthlyMentionsBySourceCha
 // additional swagger routes
 retrievalRouter.get("/trend", getArticleVolumeTrend);
 
-retrievalRouter.get("/auth/key", getApiKey);
-retrievalRouter.post("/auth/key", createApiKey);
-retrievalRouter.delete("/auth/key", revokeApiKey);
+retrievalRouter.get("/auth/key", validateApiKey, getApiKey);
+retrievalRouter.post("/auth/key", validateApiKey, createApiKey);
+retrievalRouter.delete("/auth/key", validateApiKey, revokeApiKey);
