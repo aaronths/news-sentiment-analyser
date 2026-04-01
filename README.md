@@ -208,6 +208,43 @@ Response includes:
 
 The `handler` is exported from `services/data-retrieval/src/main.ts`. You can deploy it behind Lambda Function URL or API Gateway.
 
+---
+
+## Testing Runner API
+
+Location: [services/testing](services/testing)
+
+This service exposes an API that runs integration test suites on demand. You can hit a route to execute one suite or all suites, and it returns pass/fail output in JSON.
+
+Before running it, set these values in your env file:
+
+- `TARGET_API_URL` (the deployed or local API base URL to test)
+- `X_API_KEY` (API key expected by protected routes)
+- `TESTING_PORT` (optional, defaults to `8002`)
+
+### Install and run locally
+
+```bash
+cd services/testing
+npm install
+npm run dev
+```
+
+### Endpoints
+
+- `GET /health`
+- `GET /health/target`
+- `GET /api/tests/suites`
+- `GET /api/tests/run?suite=sentiment&env=local`
+- `GET /api/tests/run/sentiment?env=dev`
+
+Notes:
+
+- `suite` defaults to `all`
+- `env` must be one of `local`, `dev`, or `prod`
+- test suites are configured in `services/testing/src/config/test-suites.ts`
+- add more suites there as new test files are made
+
 ## Frontend flow
 
 Open [frontend/index.html](frontend/index.html) in a browser or serve the folder with a simple static file server.

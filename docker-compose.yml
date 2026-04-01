@@ -18,5 +18,13 @@ services:
     depends_on:
       - collection
 
+  testing:
+    build: ./services/testing
+    ports:
+      - "${TESTING_PORT:-8002}:${TESTING_PORT:-8002}"
+    env_file: .env
+    depends_on:
+      - retrieval
+
 volumes:
   shared-news-data:
