@@ -2,25 +2,26 @@ import axios from 'axios';
 
 // 1. Read the target environment (injected by the Express route)
 const targetEnv = process.env.TEST_TARGET_ENV || 'local';
+const apikey = process.env.API_KEY || '';
 
 // 2. Map environments to their specific AWS URLs and Keys
 // (You will set the actual API keys in the AWS Lambda Environment Variables console)
 const ENV_CONFIG = {
   local: { 
-    url: 'http://localhost:8001', 
-    key: process.env.LOCAL_API_KEY 
+    url: 'http://localhost:8001'
   },
   dev: { 
-    url: 'https://mbqiv0owad.execute-api.us-east-1.amazonaws.com/dev', 
-    key: process.env.DEV_API_KEY 
+    url: 'https://mbqiv0owad.execute-api.us-east-1.amazonaws.com/dev'
   },
   prod: { 
-    url: 'https://mbqiv0owad.execute-api.us-east-1.amazonaws.com/prod', 
-    key: process.env.PROD_API_KEY 
+    url: 'https://7l6czvdc4f.execute-api.us-east-1.amazonaws.com/prod/'
+
   }
 };
 
-const config = ENV_CONFIG[targetEnv as keyof typeof ENV_CONFIG] || ENV_CONFIG.local;
+const config = { 
+    url: 'https://mbqiv0owad.execute-api.us-east-1.amazonaws.com/dev'
+  };
 
 if (!config.url) {
   throw new Error(`❌ Missing URL configuration for environment: ${targetEnv}`);
@@ -31,7 +32,7 @@ export const api = axios.create({
   baseURL: config.url,
   headers: {
     'Content-Type': 'application/json',
-    ...(config.key ? { 'X-API-Key': config.key } : {})
+    ...(apikey ? { 'X-API-Key': apikey } : {})
   },
   timeout: 30000
 });

@@ -1,10 +1,4 @@
-import { spawn } from "child_process";
-import { promises as fs } from "fs";
-import os from "os";
-import path from "path";
-import { resolveSuiteFiles } from "../config/test-suites";
-
-const allowedEnvironments = new Set(["local", "dev", "prod"]);
+import { sentimentTests } from "../tests/sentiment"; // <-- IMPORT YOUR TESTS HERE
 
 export interface RunTestsInput {
   suite?: string | undefined;
@@ -20,154 +14,65 @@ export interface RunTestsResult {
   durationMs: number;
   command: string;
   summary: {
-    totalSuites: number;
-    passedSuites: number;
-    failedSuites: number;
-    totalTests: number;
-    passedTests: number;
-    failedTests: number;
-    pendingTests: number;
+    totalSuites: number; passedSuites: number; failedSuites: number;
+    totalTests: number; passedTests: number; failedTests: number; pendingTests: number;
   };
-  failingTests: Array<{
-    suite: string;
-    testName: string;
-    fullName: string;
-    failureMessages: string[];
-  }>;
+  failingTests: Array<{ suite: string; testName: string; fullName: string; failureMessages: string[]; }>;
 }
-
-let isRunning = false;
 
 export const runSuite = async (input: RunTestsInput): Promise<RunTestsResult> => {
-  if (isRunning) {
-    throw new Error("A test run is already in progress.");
-  }
-
-  const suite = input.suite ?? "all";
-  const environment = (input.environment ?? process.env.NODE_ENV ?? "local").toLowerCase();
-
-  if (!allowedEnvironments.has(environment)) {
-    throw new Error("Invalid environment. Use one of: local, dev, prod.");
-  }
-
-  const files = resolveSuiteFiles(suite);
-  const jestBin = path.join(process.cwd(), "node_modules", "jest", "bin", "jest.js");
-  const jsonOutputPath = path.join(os.tmpdir(), `jest-results-${Date.now()}.json`);
-  const args = [
-    jestBin,
-    "--runInBand",
-    "--colors=false",
-    "--json",
-    "--outputFile",
-    jsonOutputPath,
-    ...files,
-  ];
   const startedAt = Date.now();
+  const environment = input.environment || "local";
+  
+  const summary = {
+    totalSuites: 1, passedSuites: 0, failedSuites: 0,
+    totalTests: 0, passedTests: 0, failedTests: 0, pendingTests: 0
+  };
+  const failingTests: any[] = [];
 
-  isRunning = true;
+  // --- LOAD THE IMPORTED TESTS ---
+  const tests = [
+    ...sentimentTests,
+    // When you write more files, just spread them here! e.g., ...userTests
+  ];
 
-  try {
-    const result = await new Promise<{ code: number | null; stdout: string; stderr: string }>((resolve, reject) => {
-      const child = spawn(process.execPath, args, {
-        cwd: process.cwd(),
-        env: {
-          ...process.env,
-          NODE_ENV: environment,
-          TEST_TARGET_ENV: environment,
-        },
-      });
-
-      let stdout = "";
-      let stderr = "";
-
-      child.stdout.on("data", (chunk: Buffer) => {
-        stdout += chunk.toString();
-      });
-
-      child.stderr.on("data", (chunk: Buffer) => {
-        stderr += chunk.toString();
-      });
-
-      child.on("error", reject);
-      child.on("close", (code) => {
-        resolve({ code, stdout, stderr });
-      });
-    });
-
-    const parsed = await parseJestJsonResult(jsonOutputPath);
-
-    return {
-      ok: result.code === 0,
-      suite,
-      environment,
-      files,
-      exitCode: result.code,
-      durationMs: Date.now() - startedAt,
-      command: [process.execPath, ...args].join(" "),
-      summary: parsed.summary,
-      failingTests: parsed.failingTests,
-    };
-  } finally {
+  const results = await Promise.all(tests.map(async (test) => {
     try {
-      await fs.unlink(jsonOutputPath);
-    } catch {
-      // Ignore cleanup failure for temp output file.
+      await test.run();
+      return { success: true, test };
+    } catch (error: any) {
+      return { success: false, test, error };
     }
-    isRunning = false;
+  }));
+
+  // 2. Tally up the results after they all finish
+  for (const result of results) {
+    summary.totalTests++;
+    if (result.success) {
+      summary.passedTests++;
+    } else {
+      summary.failedTests++;
+      failingTests.push({
+        suite: result.test.suite,
+        testName: result.test.testName,
+        fullName: `${result.test.suite} > ${result.test.testName}`,
+        failureMessages: [result.error.message || "Test failed mysteriously"],
+      });
+    }
   }
-};
 
-interface JestAssertionResult {
-  ancestorTitles: string[];
-  fullName: string;
-  status: string;
-  title: string;
-  failureMessages: string[];
-}
-
-interface JestTestResult {
-  name: string;
-  assertionResults: JestAssertionResult[];
-}
-
-interface JestJsonResult {
-  numTotalTestSuites: number;
-  numPassedTestSuites: number;
-  numFailedTestSuites: number;
-  numTotalTests: number;
-  numPassedTests: number;
-  numFailedTests: number;
-  numPendingTests: number;
-  testResults: JestTestResult[];
-}
-
-const parseJestJsonResult = async (
-  filePath: string,
-): Promise<{ summary: RunTestsResult["summary"]; failingTests: RunTestsResult["failingTests"] }> => {
-  const raw = await fs.readFile(filePath, "utf8");
-  const json = JSON.parse(raw) as JestJsonResult;
-
-  const failingTests = json.testResults.flatMap((suiteResult) => {
-    return suiteResult.assertionResults
-      .filter((assertion) => assertion.status === "failed")
-      .map((assertion) => ({
-        suite: path.basename(suiteResult.name),
-        testName: assertion.title,
-        fullName: assertion.fullName,
-        failureMessages: assertion.failureMessages,
-      }));
-  });
+  summary.failedSuites = summary.failedTests > 0 ? 1 : 0;
+  summary.passedSuites = summary.failedTests === 0 ? 1 : 0;
 
   return {
-    summary: {
-      totalSuites: json.numTotalTestSuites,
-      passedSuites: json.numPassedTestSuites,
-      failedSuites: json.numFailedTestSuites,
-      totalTests: json.numTotalTests,
-      passedTests: json.numPassedTests,
-      failedTests: json.numFailedTests,
-      pendingTests: json.numPendingTests,
-    },
+    ok: summary.failedTests === 0,
+    suite: input.suite || "all",
+    environment,
+    files: ["native-test-runner"],
+    exitCode: summary.failedTests === 0 ? 0 : 1,
+    durationMs: Date.now() - startedAt,
+    command: "native node runner",
+    summary,
     failingTests,
   };
 };
