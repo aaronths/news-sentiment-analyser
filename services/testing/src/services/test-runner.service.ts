@@ -91,7 +91,7 @@ export const runSuite = async (input: RunTestsInput): Promise<RunTestsResult> =>
   }
 
   const suite = input.suite ?? "all";
-  const environment = (input.environment ?? process.env.NODE_ENV ?? "local").toLowerCase();
+  const environment = (input.environment ?? process.env.TEST_TARGET_ENV ?? process.env.NODE_ENV ?? "local").toLowerCase();
 
   if (!allowedEnvironments.has(environment)) {
     throw new Error("Invalid environment. Use one of: local, dev, prod.");

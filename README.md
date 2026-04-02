@@ -258,7 +258,6 @@ Access swagger locally after running data-retrieval on `/docs`
 Testing service also exposes its own Swagger docs after running `services/testing`:
 
 - `http://localhost:8002/docs`
-- `http://localhost:8002/api/swagger.yaml`
 
 # Docker Setup
 
