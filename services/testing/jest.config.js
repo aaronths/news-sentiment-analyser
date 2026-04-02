@@ -14,6 +14,12 @@ module.exports = {
     ["jest-html-reporters", {
       "publicPath": "./report",
       "filename": "report.html"
+    }],
+    ["jest-pdf-reporter", {
+      "outputPath": "./report/test-report.pdf",
+      "expressions": {
+        "header": "SENG3011 - News Sentiment Analyser Test Report",
+      }
     }]
   ]
 };
