@@ -32,8 +32,10 @@ export const retrievalRouter = Router();
 
 // keep the old test endpoint for compatibility
 retrievalRouter.get("/test", performTest);
-// key creation is intentionally public so clients can bootstrap authentication
+// auth routes are intentionally public so clients can bootstrap authentication
 retrievalRouter.post("/auth/key", createApiKey);
+retrievalRouter.get("/auth/key", getApiKey);
+retrievalRouter.delete("/auth/key", revokeApiKey);
 
 // all routes below require API key auth
 retrievalRouter.use(validateApiKey);
@@ -64,6 +66,3 @@ retrievalRouter.get("/chart/mentions/monthly.png", getMonthlyMentionsBySourceCha
 
 // additional swagger routes
 retrievalRouter.get("/trend", getArticleVolumeTrend);
-
-retrievalRouter.get("/auth/key", getApiKey);
-retrievalRouter.delete("/auth/key", revokeApiKey);

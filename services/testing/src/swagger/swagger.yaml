@@ -1,0 +1,212 @@
+openapi: 3.0.0
+info:
+  title: News Sentiment Analyzer - Testing Service API
+  description: API for listing and running integration test suites against target environments.
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:8002
+    description: Local testing server
+  - url: https://40mglpfgf5.execute-api.us-east-1.amazonaws.com/v1/
+    description: Deployed testing service
+
+paths:
+  /health:
+    get:
+      summary: Testing service health
+      responses:
+        "200":
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+
+  /health/target:
+    get:
+      summary: Target API health probe
+      description: Calls the configured target API health endpoint and returns passthrough status.
+      responses:
+        "200":
+          description: Target API is reachable and healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TargetHealthResponse"
+        "500":
+          description: Target API is unreachable or unhealthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TargetHealthResponse"
+
+  /api/tests/suites:
+    get:
+      summary: List available test suites
+      responses:
+        "200":
+          description: Available suite names
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuitesResponse"
+
+  /api/tests/run:
+    get:
+      summary: Run suites (all or one)
+      description: Runs all suites by default, or one suite when suite query is provided.
+      parameters:
+        - name: suite
+          in: query
+          required: false
+          schema:
+            type: string
+          example: sentiment
+        - name: env
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [local, dev, prod]
+          example: local
+      responses:
+        "200":
+          description: Suite run completed successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TestRunResponse"
+        "400":
+          description: Invalid request (unknown suite or invalid env)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: A suite run is already in progress
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Suite execution failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TestRunResponse"
+
+  /api/tests/run/{suite}:
+    get:
+      summary: Run one suite by path parameter
+      parameters:
+        - name: suite
+          in: path
+          required: true
+          schema:
+            type: string
+          example: sentiment
+        - name: env
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [local, dev, prod]
+          example: dev
+      responses:
+        "200":
+          description: Suite run completed successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TestRunResponse"
+        "400":
+          description: Invalid request (unknown suite or invalid env)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: A suite run is already in progress
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Suite execution failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TestRunResponse"
+
+components:
+  schemas:
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: ok
+        service:
+          type: string
+          example: testing
+      required: [status, service]
+
+    TargetHealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: ok
+        target:
+          type: object
+          additionalProperties: true
+        error:
+          type: string
+          example: request to target failed
+      required: [status]
+
+    SuitesResponse:
+      type: object
+      properties:
+        suites:
+          type: array
+          items:
+            type: string
+          example: [sentiment]
+      required: [suites]
+
+    TestRunResponse:
+      type: object
+      properties:
+        ok:
+          type: boolean
+          example: true
+        suite:
+          type: string
+          example: sentiment
+        environment:
+          type: string
+          example: local
+        startedAt:
+          type: string
+          format: date-time
+        finishedAt:
+          type: string
+          format: date-time
+        summary:
+          type: object
+          additionalProperties: true
+        output:
+          type: string
+      required: [ok]
+
+    ErrorResponse:
+      type: object
+      properties:
+        ok:
+          type: boolean
+          example: false
+        error:
+          type: string
+          example: "Unknown suite 'foo'. Available suites: sentiment"
+      required: [ok, error]

@@ -1,0 +1,66 @@
+name: CI - Testing Microservice
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  integration-tests:
+    runs-on: ubuntu-latest
+
+    # Set directory to the testing service folder
+    defaults:
+      run:
+        working-directory: services/testing
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: services/testing/package-lock.json
+
+      - name: Install Dependencies
+        run: npm ci
+
+      # Testing against the already deployed DEV environment
+      - name: Run Dev Integration Tests + Capture Report
+        env:
+          TEST_TARGET_ENV: dev
+          DEV_API_KEY: ${{ secrets.DEV_API_KEY }}
+          # If the dev URL changes, you can override it here too
+          DEV_API_URL: https://mbqiv0owad.execute-api.us-east-1.amazonaws.com/dev
+        # Use --verbose and --no-cache to ensure full output is generated
+        run: |
+          mkdir -p report
+          npm run test:dev -- --verbose --color 2>&1 | tee report/test-report.txt
+
+      # Generate the Artifact for the testing report (even if tests fail)
+      - name: Upload Test Report
+        if: always() # Run even if tests fail
+        uses: actions/upload-artifact@v4
+        with:
+          name: testing-report
+          path: services/testing/report/
+
+      # # To run tests against the local environment, we need to start the data-retrieval service as well
+      # - name: Start Local Data-Retrieval Service
+      #   run: |
+      #     cd ../data-retrieval
+      #     npm install
+      #     npm run start &
+      #     npx wait-on http://localhost:8000 # Wait for it to be ready
+      #   env:
+      #     X_API_KEY: ${{ secrets.LOCAL_API_KEY }}
+
+      # - name: Run Local Tests
+      #   env:
+      #     TEST_TARGET_ENV: local
+      #     LOCAL_API_KEY: ${{ secrets.LOCAL_API_KEY }}
+      #   run: npm run test:local

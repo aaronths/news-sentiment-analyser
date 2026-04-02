@@ -24,8 +24,10 @@ testingRouter.get("/run", async (req, res) => {
     });
   }
   try {
-    process.env.TEST_TARGET_ENV = environment.toLowerCase();
+    if (environment) {
+      process.env.TEST_TARGET_ENV = environment.toLowerCase();
     process.env.API_KEY = apikey;
+    }
     const result = await runSuite({ suite, environment });
     res.status(result.ok ? 200 : 500).json(result);
   } catch (error) {
