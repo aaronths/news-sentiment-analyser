@@ -12,7 +12,7 @@ const ENV_CONFIG = {
   },
   dev: {
     url: 'https://mbqiv0owad.execute-api.us-east-1.amazonaws.com/dev',
-    key: 'process.env.DEV_API_KEY'
+    key: process.env.DEV_API_KEY
   },
   prod: {
     url: 'https://mbqiv0owad.execute-api.us-east-1.amazonaws.com/prod',

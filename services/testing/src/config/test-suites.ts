@@ -3,6 +3,7 @@
 // get the list of test files for each suite
 export const testSuites: Record<string, string[]> = {
   sentiment: ["src/tests/sentiment.test.ts"],
+  chart: ["src/tests/chart.test.ts"],
 };
 
 export const listSuites = (): string[] => Object.keys(testSuites);
