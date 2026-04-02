@@ -1,5 +1,8 @@
 import cors from "cors";
 import express from "express";
+import path from "path";
+import swaggerUi from "swagger-ui-express";
+import YAML from "yamljs";
 import { testingRouter } from "./routes/testing.routes";
 
 export const app = express();
@@ -8,6 +11,11 @@ const PORT = Number(process.env.TESTING_PORT || process.env.PORT || 8002);
 app.use(cors());
 app.use(express.json());
 app.set("json spaces", 2);
+
+const swaggerPath = path.join(process.cwd(), "src", "swagger", "swagger.yaml");
+const swaggerDocument = YAML.load(swaggerPath);
+
+app.use("/docs", swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 
 app.get("/health", (_req, res) => {
   res.json({ status: "ok", service: "testing" });

@@ -23,16 +23,3 @@ testingRouter.get("/run", async (req, res) => {
     res.status(statusCode).json({ ok: false, error: message });
   }
 });
-
-testingRouter.get("/run/:suite", async (req, res) => {
-  try {
-    const environment = typeof req.query.env === "string" ? req.query.env : undefined;
-    process.env.TEST_TARGET_ENV = environment.toLowerCase();
-    const result = await runSuite({ suite: req.params.suite, environment });
-    res.status(result.ok ? 200 : 500).json(result);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Failed to run tests.";
-    const statusCode = message.includes("already in progress") ? 409 : 400;
-    res.status(statusCode).json({ ok: false, error: message });
-  }
-});

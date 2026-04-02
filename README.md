@@ -237,6 +237,7 @@ npm run dev
 - `GET /api/tests/suites`
 - `GET /api/tests/run?suite=sentiment&env=local`
 - `GET /api/tests/run/sentiment?env=dev`
+- `GET /docs`
 
 Notes:
 
@@ -253,6 +254,11 @@ Provide the deployed runtime API URL, enter a keyword, and submit.
 
 ## Swagger
 Access swagger locally after running data-retrieval on `/docs`
+
+Testing service also exposes its own Swagger docs after running `services/testing`:
+
+- `http://localhost:8002/docs`
+- `http://localhost:8002/api/swagger.yaml`
 
 # Docker Setup
 
