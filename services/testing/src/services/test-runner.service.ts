@@ -34,9 +34,56 @@ export interface RunTestsResult {
     fullName: string;
     failureMessages: string[];
   }>;
+  output?: {
+    stdout: string;
+    stderr: string;
+  };
 }
 
 let isRunning = false;
+
+const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
+
+const waitForFile = async (filePath: string, retries = 10, delayMs = 100): Promise<boolean> => {
+  for (let i = 0; i < retries; i += 1) {
+    try {
+      await fs.access(filePath);
+      return true;
+    } catch {
+      await sleep(delayMs);
+    }
+  }
+  return false;
+};
+
+const extractCount = (text: string, label: string): number => {
+  const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const regex = new RegExp(`${escaped}:\\s*(\\d+)`, "i");
+  const match = text.match(regex);
+  return match ? Number(match[1]) : 0;
+};
+
+const parseSummaryFromText = (text: string): RunTestsResult["summary"] => {
+  const suiteTotal = extractCount(text, "Test Suites");
+  const suiteFailed = extractCount(text, "failed");
+  const suitePassed = extractCount(text, "passed");
+
+  const testsMatch = text.match(/Tests:\s*([^\n\r]+)/i)?.[1] ?? "";
+  const totalTests = extractCount(testsMatch, "total");
+  const failedTests = extractCount(testsMatch, "failed");
+  const passedTests = extractCount(testsMatch, "passed");
+  const pendingTests = extractCount(testsMatch, "pending") || extractCount(testsMatch, "skipped");
+
+  return {
+    totalSuites: suiteTotal,
+    passedSuites: suitePassed,
+    failedSuites: suiteFailed,
+    totalTests,
+    passedTests,
+    failedTests,
+    pendingTests,
+  };
+};
 
 export const runSuite = async (input: RunTestsInput): Promise<RunTestsResult> => {
   if (isRunning) {
@@ -94,6 +141,28 @@ export const runSuite = async (input: RunTestsInput): Promise<RunTestsResult> =>
       });
     });
 
+    const hasJsonOutput = await waitForFile(jsonOutputPath);
+    if (!hasJsonOutput) {
+      const combined = `${result.stdout}\n${result.stderr}`;
+      const summary = parseSummaryFromText(combined);
+
+      return {
+        ok: result.code === 0,
+        suite,
+        environment,
+        files,
+        exitCode: result.code,
+        durationMs: Date.now() - startedAt,
+        command: [process.execPath, ...args].join(" "),
+        summary,
+        failingTests: [],
+        output: {
+          stdout: result.stdout,
+          stderr: result.stderr,
+        },
+      };
+    }
+
     const parsed = await parseJestJsonResult(jsonOutputPath);
 
     return {
@@ -144,6 +213,11 @@ interface JestJsonResult {
 const parseJestJsonResult = async (
   filePath: string,
 ): Promise<{ summary: RunTestsResult["summary"]; failingTests: RunTestsResult["failingTests"] }> => {
+  const exists = await waitForFile(filePath);
+  if (!exists) {
+    throw new Error(`Jest results file was not found: ${filePath}`);
+  }
+
   const raw = await fs.readFile(filePath, "utf8");
   const json = JSON.parse(raw) as JestJsonResult;
 

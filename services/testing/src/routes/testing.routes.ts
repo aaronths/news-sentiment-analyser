@@ -14,7 +14,9 @@ testingRouter.get("/run", async (req, res) => {
   const environment = typeof req.query.env === "string" ? req.query.env : undefined;
 
   try {
-    process.env.TEST_TARGET_ENV = environment.toLowerCase();
+    if (environment) {
+      process.env.TEST_TARGET_ENV = environment.toLowerCase();
+    }
     const result = await runSuite({ suite, environment });
     res.status(result.ok ? 200 : 500).json(result);
   } catch (error) {
