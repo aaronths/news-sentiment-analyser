@@ -18,25 +18,26 @@ for (const envPath of envCandidates) {
     dotenv.config({ path: envPath, override: false });
   }
 }
+const apikey = process.env.API_KEY || '';
 
 // 2. Map environments to their specific AWS URLs and Keys
 // (You will set the actual API keys in the AWS Lambda Environment Variables console)
 const ENV_CONFIG = {
-  local: {
-    url: process.env.LOCAL_API_URL || process.env.TARGET_API_URL || 'http://localhost:8001',
-    key: process.env.LOCAL_API_KEY || process.env.X_API_KEY
+  local: { 
+    url: 'http://localhost:8001'
   },
-  dev: {
-    url: process.env.DEV_API_URL || process.env.TARGET_API_URL || 'https://mbqiv0owad.execute-api.us-east-1.amazonaws.com/dev',
-    key: process.env.DEV_API_KEY || process.env.X_API_KEY
+  dev: { 
+    url: 'https://mbqiv0owad.execute-api.us-east-1.amazonaws.com/dev'
   },
-  prod: {
-    url: process.env.PROD_API_URL || process.env.TARGET_API_URL || 'https://mbqiv0owad.execute-api.us-east-1.amazonaws.com/prod',
-    key: process.env.PROD_API_KEY || process.env.X_API_KEY
+  prod: { 
+    url: 'https://7l6czvdc4f.execute-api.us-east-1.amazonaws.com/prod/'
+
   }
 };
 
-const config = ENV_CONFIG[targetEnv as keyof typeof ENV_CONFIG] || ENV_CONFIG.local;
+const config = { 
+    url: 'https://mbqiv0owad.execute-api.us-east-1.amazonaws.com/dev'
+  };
 
 if (!config.url) {
   throw new Error(`❌ Missing URL configuration for environment: ${targetEnv}`);
@@ -50,7 +51,8 @@ export const authHeaders = config.key
 export const api = axios.create({
   baseURL: config.url,
   headers: {
-    'Content-Type': 'application/json'
+    'Content-Type': 'application/json',
+    ...(apikey ? { 'X-API-Key': apikey } : {})
   },
   timeout: 60000
 });

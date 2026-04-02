@@ -1,5 +1,6 @@
 import cors from "cors";
 import express from "express";
+import serverless from "serverless-http";
 import path from "path";
 import swaggerUi from "swagger-ui-express";
 import YAML from "yamljs";
@@ -32,8 +33,17 @@ app.get("/health/target", async (_req, res) => {
   }
 });
 
+// Your routes are prefixed here!
 app.use("/api/tests", testingRouter);
 
-app.listen(PORT, () => {
-  console.log(`Testing service running on port ${PORT}`);
-});
+// --- DUAL-ENVIRONMENT SETUP ---
+
+// 1. Local Development Mode (Only runs on your Mac)
+if (process.env.NODE_ENV === "local") {
+  app.listen(PORT, () => {
+    console.log(`Testing service running locally on port ${PORT}`);
+  });
+}
+
+// 2. AWS Lambda Mode (Exports the handler for API Gateway)
+export const handler = serverless(app);
