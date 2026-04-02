@@ -14,6 +14,9 @@ module.exports = {
     ["jest-html-reporters", {
       "publicPath": "./report",
       "filename": "report.html"
+    }],
+    ["jest-markdown-reporter", {
+      "outputPath": "./report/test-report.md"
     }]
   ]
 };

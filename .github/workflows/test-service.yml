@@ -1,4 +1,4 @@
-name: Testing Microservice CI
+name: CI - Testing Microservice
 
 on:
   push:
