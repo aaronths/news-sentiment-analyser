@@ -27,7 +27,7 @@ jobs:
           cache-dependency-path: services/testing/package-lock.json
 
       - name: Install Dependencies
-        run: npm ci
+        run: npm install
 
       # Testing against the already deployed DEV environment
       - name: Run Dev Integration Tests + Capture Report
