@@ -30,13 +30,15 @@ jobs:
         run: npm ci
 
       # Testing against the already deployed DEV environment
-      - name: Run Dev Integration Tests
+      - name: Run Dev Integration Tests + Capture Report
         env:
           TEST_TARGET_ENV: dev
           DEV_API_KEY: ${{ secrets.DEV_API_KEY }}
           # If the dev URL changes, you can override it here too
           DEV_API_URL: https://mbqiv0owad.execute-api.us-east-1.amazonaws.com/dev
-        run: npm run test:dev
+        run: |
+          mkdir -p report
+          npm run test:dev | tee report/test-report.txt
 
       # Generate the Artifact for the testing report (even if tests fail)
       - name: Upload Test Report
