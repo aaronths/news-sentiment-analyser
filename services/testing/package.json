@@ -3,13 +3,13 @@
   "version": "1.0.0",
   "main": "dist/main.js",
   "scripts": {
-    "dev": "cross-env NODE_ENV=local ts-node-dev --transpile-only src/main.ts",
+    "dev": "cross-env TEST_TARGET_ENV=local ts-node-dev --transpile-only src/main.ts",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/main.js",
     "test": "jest",
-    "test:local": "cross-env NODE_ENV=local jest",
-    "test:dev": "cross-env NODE_ENV=dev jest",
-    "test:prod": "cross-env NODE_ENV=prod jest"
+    "test:local": "cross-env TEST_TARGET_ENV=local jest",
+    "test:dev": "cross-env TEST_TARGET_ENV=dev jest",
+    "test:prod": "cross-env TEST_TARGET_ENV=prod jest"
   },
   "keywords": [],
   "author": "",
@@ -32,6 +32,7 @@
     "@types/yamljs": "^0.2.34",
     "cross-env": "^10.1.0",
     "jest": "^30.3.0",
+    "jest-html-reporters": "^3.1.7",
     "ts-jest": "^29.4.6",
     "ts-node": "^10.9.2",
     "ts-node-dev": "^2.0.0",
