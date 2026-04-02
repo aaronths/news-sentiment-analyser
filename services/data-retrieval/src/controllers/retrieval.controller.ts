@@ -969,26 +969,24 @@ export const validateApiKey = (req: Request, res: Response, next: NextFunction) 
 };
 
 export const getApiKey = async (req: Request, res: Response) => {
-  const record = (req as AuthenticatedRequest).apiKeyRecord || resolveApiKeyRecord(req);
-  if (!record) {
-    if (activeApiKey && activeApiKey.status === "revoked") {
-      logger.info("API key lookup failed - key revoked");
-      return res
-        .status(404)
-        .json({ code: 404, message: "No active API key found for this user" });
-    }
-    logger.info("API key lookup failed - missing or invalid key");
-    return res.status(401).json({ code: 401, message: "Missing or invalid API key" });
+  if (!activeApiKey) {
+    logger.info("API key lookup failed - no active key found");
+    return res.status(404).json({ code: 404, message: "No active API key found for this user" });
   }
 
-  logger.info("Successfully fetched API key metadata", { keyId: record.keyId, status: record.status });
+  if (activeApiKey.status === "revoked") {
+    logger.info("API key lookup failed - key revoked");
+    return res.status(404).json({ code: 404, message: "No active API key found for this user" });
+  }
+
+  logger.info("Successfully fetched API key metadata", { keyId: activeApiKey.keyId, status: activeApiKey.status });
 
   res.json({
-    keyId: record.keyId,
-    label: record.label,
-    createdAt: record.createdAt,
-    lastUsedAt: record.lastUsedAt,
-    status: record.status,
+    keyId: activeApiKey.keyId,
+    label: activeApiKey.label,
+    createdAt: activeApiKey.createdAt,
+    lastUsedAt: activeApiKey.lastUsedAt,
+    status: activeApiKey.status,
   });
 };
 
@@ -1023,17 +1021,25 @@ export const createApiKey = async (req: Request, res: Response) => {
 
 export const revokeApiKey = async (req: Request, res: Response) => {
   try {
-    const record = (req as AuthenticatedRequest).apiKeyRecord || resolveApiKeyRecord(req);
-    if (!record) {
-      if (activeApiKey && activeApiKey.status === "active") {
-        logger.info("API key revoke failed - missing or invalid key");
-        return handleValidationError(res, new Error("Missing or invalid API key"));
-      }
+    if (!activeApiKey) {
       logger.info("API key revoke failed - no active key found");
       return handleNotFound(res, "No active API key found for this user");
     }
-    record.status = "revoked";
-    logger.info("Successfully revoked API key", { keyId: record.keyId });
+
+    if (activeApiKey.status === "revoked") {
+      logger.info("API key revoke failed - key already revoked");
+      return handleNotFound(res, "No active API key found for this user");
+    }
+
+    // Try to get API key from request header for validation, but don't require it
+    const providedKey = getApiKeyFromRequest(req);
+    if (providedKey && providedKey !== activeApiKey.key) {
+      logger.info("API key revoke failed - invalid key provided");
+      return res.status(401).json({ code: 401, message: "Missing or invalid API key" });
+    }
+
+    activeApiKey.status = "revoked";
+    logger.info("Successfully revoked API key", { keyId: activeApiKey.keyId });
     handleNoContent(res);
   } catch (error) {
     if (error instanceof Error) {
