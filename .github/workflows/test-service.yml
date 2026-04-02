@@ -36,9 +36,10 @@ jobs:
           DEV_API_KEY: ${{ secrets.DEV_API_KEY }}
           # If the dev URL changes, you can override it here too
           DEV_API_URL: https://mbqiv0owad.execute-api.us-east-1.amazonaws.com/dev
+        # Use --verbose and --no-cache to ensure full output is generated
         run: |
           mkdir -p report
-          npm run test:dev | tee report/test-report.txt
+          npm run test:dev -- --verbose --color 2>&1 | tee report/test-report.txt
 
       # Generate the Artifact for the testing report (even if tests fail)
       - name: Upload Test Report
