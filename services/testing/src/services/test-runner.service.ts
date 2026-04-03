@@ -1,4 +1,6 @@
-import { sentimentTests } from "../tests/sentiment"; // <-- IMPORT YOUR TESTS HERE
+import { sentimentTests } from "../tests/sentiment";
+import { articlesTests } from "../tests/articles";
+import { chartTests } from "../tests/chart";
 
 export interface RunTestsInput {
   suite?: string | undefined;
@@ -33,7 +35,8 @@ export const runSuite = async (input: RunTestsInput): Promise<RunTestsResult> =>
   // --- LOAD THE IMPORTED TESTS ---
   const tests = [
     ...sentimentTests,
-    // When you write more files, just spread them here! e.g., ...userTests
+    ...articlesTests,
+    ...chartTests,
   ];
 
   const results = await Promise.all(tests.map(async (test) => {

@@ -23,28 +23,26 @@ const apikey = process.env.API_KEY || '';
 // 2. Map environments to their specific AWS URLs and Keys
 // (You will set the actual API keys in the AWS Lambda Environment Variables console)
 const ENV_CONFIG = {
-  local: { 
-    url: 'http://localhost:8001'
+  local: {
+    url: 'http://localhost:8002'
   },
-  dev: { 
+  dev: {
     url: 'https://mbqiv0owad.execute-api.us-east-1.amazonaws.com/dev'
   },
-  prod: { 
+  prod: {
     url: 'https://7l6czvdc4f.execute-api.us-east-1.amazonaws.com/prod/'
-
   }
 };
 
-const config = { 
-    url: 'https://mbqiv0owad.execute-api.us-east-1.amazonaws.com/dev'
-  };
+// Change back to hardcoded dev url for AWS if necessary
+const config = ENV_CONFIG[targetEnv as keyof typeof ENV_CONFIG] || ENV_CONFIG.dev;
 
 if (!config.url) {
   throw new Error(`❌ Missing URL configuration for environment: ${targetEnv}`);
 }
 
 export const authHeaders = config.key
-  ? { 'X-API-Key': config.key }
+  ? { 'X-API-Key': 'config.key' }
   : {};
 
 // 3. Export the singleton client that the tests will use
