@@ -4,6 +4,7 @@
 export const testSuites: Record<string, string[]> = {
   sentiment: ["src/tests/sentiment.test.ts"],
   chart: ["src/tests/chart.test.ts"],
+  articles: ["src/tests/articles.test.ts"],
 };
 
 export const listSuites = (): string[] => Object.keys(testSuites);

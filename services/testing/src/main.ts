@@ -7,7 +7,7 @@ import YAML from "yamljs";
 import { testingRouter } from "./routes/testing.routes";
 
 export const app = express();
-const PORT = Number(process.env.TESTING_PORT || process.env.PORT || 8002);
+const PORT = Number(process.env.TESTING_PORT || process.env.PORT);
 
 app.use(cors());
 app.use(express.json());
@@ -39,7 +39,12 @@ app.use("/api/tests", testingRouter);
 // --- DUAL-ENVIRONMENT SETUP ---
 
 // 1. Local Development Mode (Only runs on your Mac)
-if (process.env.NODE_ENV === "local") {
+const isLocalMode = process.env.TEST_TARGET_ENV === "local" || process.env.NODE_ENV === "local";
+
+if (isLocalMode) {
+  if (!Number.isFinite(PORT)) {
+    throw new Error("TESTING_PORT or PORT must be set");
+  }
   app.listen(PORT, () => {
     console.log(`Testing service running locally on port ${PORT}`);
   });
